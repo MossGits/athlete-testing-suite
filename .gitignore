@@ -24,3 +24,4 @@ __pycache__/
 # Env/config you don't want public (uncomment if you introduce these)
 # .env
 # .env.local
+.mvn/toolchains.xml
