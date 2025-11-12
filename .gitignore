@@ -1,0 +1,26 @@
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Global logs & dumps (even outside /backend)
+*.log
+*.dump
+
+# Editors/IDEs at repo root
+.idea/
+.vscode/
+*.iml
+
+# Node / web (if you add a separate frontend later)
+node_modules/
+dist/
+build/
+
+# Python (if you add scripts)
+__pycache__/
+*.pyc
+
+# Env/config you don't want public (uncomment if you introduce these)
+# .env
+# .env.local

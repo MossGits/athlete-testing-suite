@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Athlete Testing – Register</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link href="/css/theme.css" rel="stylesheet"/>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>Register</h1>
+        <div class="spacer"></div>
+        <a href="/login.html">Have an account? Log in →</a>
+    </div>
+
+    <div class="card extra-right">
+        <h2>Create your account</h2>
+        <div class="grid two">
+            <div>
+                <label>Email</label>
+                <input id="regEmail" type="email" class="input" placeholder="you@example.org"/>
+            </div>
+            <div>
+                <label>Password</label>
+                <input id="regPassword" type="password" class="input" placeholder="********"/>
+            </div>
+        </div>
+
+        <div class="grid two" style="margin-top:.5rem;">
+            <div>
+                <label>Role</label>
+                <select id="regRole" class="input">
+                    <option>ATHLETE</option>
+                    <option>TRAINER</option>
+                </select>
+            </div>
+            <div>
+                <label>Organization</label>
+                <input id="regOrg" class="input" placeholder="Example Org"/>
+            </div>
+        </div>
+
+        <div class="grid two" style="margin-top:.5rem;">
+            <div>
+                <label>First name (ATHLETE)</label>
+                <input id="regFirst" class="input" placeholder="Alex"/>
+            </div>
+            <div>
+                <label>Last name (ATHLETE)</label>
+                <input id="regLast" class="input" placeholder="Runner"/>
+            </div>
+        </div>
+
+        <div style="margin-top:1rem; display:flex; gap:.75rem; align-items:center;">
+            <button class="btn" onclick="register()">Create Account</button>
+            <span id="msg" class="msg"></span>
+        </div>
+        <div class="note">Athletes will automatically receive a profile in the system.</div>
+        <pre id="regOut" class="note" style="white-space:pre-wrap;"></pre>
+    </div>
+</div>
+
+<script>
+    async function register() {
+        const body = {
+            email: document.getElementById('regEmail').value.trim(),
+            password: document.getElementById('regPassword').value,
+            role: document.getElementById('regRole').value,
+            organization: document.getElementById('regOrg').value || 'Example Org',
+            firstName: document.getElementById('regFirst').value,
+            lastName: document.getElementById('regLast').value
+        };
+        const res = await fetch('/api/auth/register', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify(body),
+            credentials: 'include'
+        });
+        const text = await res.text();
+        document.getElementById('regOut').textContent = res.status + '\n' + text;
+
+        const msg = document.getElementById('msg');
+        if (res.ok) {
+            msg.className='msg ok';
+            msg.textContent='Registered! You can now log in.';
+        } else {
+            msg.className='msg warn';
+            msg.textContent='Registration failed — please check your inputs.';
+        }
+    }
+</script>
+</body>
+</html>

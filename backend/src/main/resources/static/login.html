@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <title>Login – Athlete Testing</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <link href="/css/theme.css" rel="stylesheet"/>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <a href="/">← Back to Register</a>
+        <h1>Login</h1>
+        <div class="spacer"></div>
+    </div>
+
+    <div class="card" style="max-width:640px;">
+        <div class="grid two">
+            <div>
+                <label>Email</label>
+                <input id="loginEmail" type="email" class="input" placeholder="you@example.org"/>
+            </div>
+            <div>
+                <label>Password</label>
+                <input id="loginPassword" type="password" class="input" placeholder="********"/>
+            </div>
+        </div>
+
+        <div style="margin-top:1rem; display:flex; gap:.75rem; align-items:center;">
+            <button class="btn" onclick="login()">Login</button>
+            <span id="msg" class="msg warn"></span>
+        </div>
+        <pre id="out" class="note" style="white-space:pre-wrap;"></pre>
+    </div>
+</div>
+
+<script>
+    async function login() {
+        const form = new URLSearchParams();
+        form.set('username', document.getElementById('loginEmail').value);
+        form.set('password', document.getElementById('loginPassword').value);
+
+        const res = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: {'Content-Type':'application/x-www-form-urlencoded'},
+            body: form.toString(),
+            credentials: 'include'
+        });
+
+        const text = await res.text();
+        document.getElementById('out').textContent = res.status + '\n' + text;
+
+        if (res.ok) {
+            window.location.href = '/admin-users.html';
+        } else {
+            document.getElementById('msg').textContent = 'Login failed. Check email/password.';
+        }
+    }
+</script>
+</body>
+</html>

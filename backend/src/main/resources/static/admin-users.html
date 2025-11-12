@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <title>Accounts Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <link href="/css/theme.css" rel="stylesheet"/>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>Accounts Dashboard</h1>
+        <div class="spacer"></div>
+        <span id="who" class="pill"></span>
+        <a href="/" class="nav">Home</a>
+        <a href="/login.html" class="nav">Login</a>
+        <button class="btn ghost" onclick="logout()">Logout</button>
+    </div>
+
+    <div class="card">
+        <div class="navrow">
+            <button class="btn" onclick="refreshAll()">Refresh</button>
+            <span id="msg" class="msg"></span>
+        </div>
+
+        <div class="table-wrap">
+            <table id="tbl" hidden>
+                <thead>
+                <tr>
+                    <th>User ID</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Org ID</th>
+                    <th>Org</th>
+                    <th>AthleteProfile ID</th>
+                    <th>First</th>
+                    <th>Last</th>
+                </tr>
+                </thead>
+                <tbody id="rows"></tbody>
+            </table>
+        </div>
+
+        <pre id="detail" class="note" hidden></pre>
+    </div>
+</div>
+
+<script>
+    async function refreshAll() {
+        setMsg('');
+        setDetail('');
+
+        const whoRes = await fetch('/api/auth/me', { credentials: 'include' });
+        if (!whoRes.ok) {
+            setMsg('Not authenticated. Redirecting to login…','warn');
+            setDetail('GET /api/auth/me -> HTTP ' + whoRes.status + '\\n' + await whoRes.text());
+            setTimeout(() => window.location.href='/login.html', 900);
+            return;
+        }
+        const who = await whoRes.json();
+        document.getElementById('who').textContent = `${who.email} • ${who.role}`;
+
+        const accRes = await fetch('/api/admin/accounts', { credentials: 'include' });
+        if (!accRes.ok) {
+            setMsg('Failed to load accounts.','warn');
+            setDetail('GET /api/admin/accounts -> HTTP ' + accRes.status + '\\n' + await accRes.text());
+            return;
+        }
+        const accounts = await accRes.json();
+
+        const tbody = document.getElementById('rows');
+        tbody.innerHTML = '';
+        accounts.forEach(a => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+          <td>${a.userId ?? ''}</td>
+          <td>${a.email ?? ''}</td>
+          <td>${a.role ?? ''}</td>
+          <td>${a.organizationId ?? ''}</td>
+          <td>${a.organizationName ?? ''}</td>
+          <td>${a.athleteProfileId ?? ''}</td>
+          <td>${a.firstName ?? ''}</td>
+          <td>${a.lastName ?? ''}</td>
+        `;
+            tbody.appendChild(tr);
+        });
+
+        document.getElementById('tbl').hidden = false;
+        setMsg('Loaded ✔','ok');
+    }
+
+    async function logout(){
+        try{
+            const res = await fetch('/api/auth/logout', { method:'POST', credentials:'include' });
+            if(res.ok){ window.location.href='/login.html'; }
+        } catch {}
+    }
+
+    function setMsg(text,type){
+        const el = document.getElementById('msg');
+        el.className = 'msg ' + (type || '');
+        el.textContent = text || '';
+    }
+    function setDetail(text){
+        const el = document.getElementById('detail');
+        el.hidden = !text;
+        el.textContent = text || '';
+    }
+
+    refreshAll();
+</script>
+</body>
+</html>
