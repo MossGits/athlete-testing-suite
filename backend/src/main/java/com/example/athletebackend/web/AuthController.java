@@ -27,8 +27,8 @@ public class AuthController {
                 .orElseGet(() -> orgs.save(Organization.builder().name(req.organization()).build()));
 
         var role = switch (req.role().toUpperCase()) {
-            case "ATHLETE" -> UserRole.ROLE_ATHLETE;
-            case "TRAINER" -> UserRole.ROLE_TRAINER;
+            case "ATHLETE" -> UserRole.ATHLETE;
+            case "TRAINER" -> UserRole.TRAINER;
             default -> throw new IllegalArgumentException("Invalid role (use ATHLETE or TRAINER)");
         };
 
@@ -42,7 +42,7 @@ public class AuthController {
                 .build());
 
         // Auto-create athlete profile for ATHLETE accounts
-        if (role == UserRole.ROLE_ATHLETE) {
+        if (role == UserRole.ATHLETE) {
             var first = (req.firstName() == null || req.firstName().isBlank()) ? "Athlete" : req.firstName().trim();
             var last  = (req.lastName()  == null || req.lastName().isBlank())  ? "User"    : req.lastName().trim();
             athletes.save(AthleteProfile.builder()

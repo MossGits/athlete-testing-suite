@@ -19,13 +19,16 @@ public class AppUserDetailsService implements UserDetailsService {
         this.users = users;
     }
 
+    // src/main/java/com/example/athletebackend/security/AppUserDetailsService.java
     @Override
-    public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
-        UserAccount u = users.findByEmail(email)
-                .orElseThrow(() -> new UsernameNotFoundException("No user: " + email));
+    public UserDetails loadUserByUsername(String email) {
+        var u = users.findByEmail(email).orElseThrow(() -> new UsernameNotFoundException(email));
 
-        // Expecting enum roles like ROLE_ATHLETE / ROLE_TRAINER via prefix below
-        var auths = List.of(new SimpleGrantedAuthority("ROLE_" + u.getRole().name()));
+        // normalize: accept either TRAINER/ATHLETE or ROLE_TRAINER/ROLE_ATHLETE from DB
+        String raw = u.getRole().name();                      // if role is an enum
+        String roleNoPrefix = raw.startsWith("ROLE_") ? raw.substring(5) : raw;
+
+        var auths = List.of(new SimpleGrantedAuthority("ROLE_" + roleNoPrefix));
         return new AppUserDetails(u, auths);
     }
 }
