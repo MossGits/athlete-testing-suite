@@ -73,12 +73,9 @@
         accounts.forEach(a => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
-          <td>${a.userId ?? ''}</td>
           <td>${a.email ?? ''}</td>
           <td>${a.role ?? ''}</td>
-          <td>${a.organizationId ?? ''}</td>
           <td>${a.organizationName ?? ''}</td>
-          <td>${a.athleteProfileId ?? ''}</td>
           <td>${a.firstName ?? ''}</td>
           <td>${a.lastName ?? ''}</td>
         `;
