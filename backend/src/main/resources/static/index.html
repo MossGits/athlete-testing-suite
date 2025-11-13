@@ -5,6 +5,11 @@
     <title>Athlete Testing – Register</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link href="/css/theme.css" rel="stylesheet"/>
+    <style>
+        /* small polish so hide/show feels smooth and layout doesn't jump */
+        #athleteFields { transition: opacity 120ms ease; }
+        #athleteFields[hidden] { display: none; opacity: 0; }
+    </style>
 </head>
 <body>
 <div class="container">
@@ -16,14 +21,15 @@
 
     <div class="card extra-right">
         <h2>Create your account</h2>
+
         <div class="grid two">
             <div>
                 <label>Email</label>
-                <input id="regEmail" type="email" class="input" placeholder="you@example.org"/>
+                <input id="regEmail" type="email" class="input" placeholder="you@example.org" required/>
             </div>
             <div>
                 <label>Password</label>
-                <input id="regPassword" type="password" class="input" placeholder="********"/>
+                <input id="regPassword" type="password" class="input" placeholder="********" required minlength="8"/>
             </div>
         </div>
 
@@ -31,8 +37,8 @@
             <div>
                 <label>Role</label>
                 <select id="regRole" class="input">
-                    <option>ATHLETE</option>
-                    <option>TRAINER</option>
+                    <option value="ATHLETE">ATHLETE</option>
+                    <option value="TRAINER">TRAINER</option>
                 </select>
             </div>
             <div>
@@ -41,14 +47,15 @@
             </div>
         </div>
 
-        <div class="grid two" style="margin-top:.5rem;">
+        <!-- Athlete-only fields (shown only when role = ATHLETE) -->
+        <div id="athleteFields" class="grid two" style="margin-top:.5rem;">
             <div>
                 <label>First name (ATHLETE)</label>
-                <input id="regFirst" class="input" placeholder="Alex"/>
+                <input id="regFirst" class="input" placeholder="Alex" autocomplete="given-name"/>
             </div>
             <div>
                 <label>Last name (ATHLETE)</label>
-                <input id="regLast" class="input" placeholder="Runner"/>
+                <input id="regLast" class="input" placeholder="Runner" autocomplete="family-name"/>
             </div>
         </div>
 
@@ -62,7 +69,39 @@
 </div>
 
 <script>
+    // Toggle athlete-only fields visibility + requiredness
+    function syncAthleteFields() {
+        const role = document.getElementById('regRole').value;
+        const group = document.getElementById('athleteFields');
+        const first = document.getElementById('regFirst');
+        const last  = document.getElementById('regLast');
+        const isAthlete = role === 'ATHLETE';
+
+        // show/hide
+        if (isAthlete) {
+            group.hidden = false;
+        } else {
+            group.hidden = true;
+            // clear so we don't send stale data
+            first.value = '';
+            last.value = '';
+        }
+
+        // required only when athlete
+        first.required = isAthlete;
+        last.required  = isAthlete;
+    }
+
+    // Run on load + when role changes
+    document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('regRole').addEventListener('change', syncAthleteFields);
+        syncAthleteFields();
+    });
+
     async function register() {
+        // Ensure required flags are correct right before submit
+        syncAthleteFields();
+
         const body = {
             email: document.getElementById('regEmail').value.trim(),
             password: document.getElementById('regPassword').value,
@@ -71,12 +110,14 @@
             firstName: document.getElementById('regFirst').value,
             lastName: document.getElementById('regLast').value
         };
+
         const res = await fetch('/api/auth/register', {
             method: 'POST',
             headers: {'Content-Type':'application/json'},
             body: JSON.stringify(body),
             credentials: 'include'
         });
+
         const text = await res.text();
         document.getElementById('regOut').textContent = res.status + '\n' + text;
 
