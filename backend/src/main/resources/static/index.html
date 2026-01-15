@@ -6,7 +6,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link href="/css/theme.css" rel="stylesheet"/>
     <style>
-        /* small polish so hide/show feels smooth and layout doesn't jump */
         #athleteFields { transition: opacity 120ms ease; }
         #athleteFields[hidden] { display: none; opacity: 0; }
     </style>
@@ -81,7 +80,7 @@
             group.hidden = false;
         } else {
             group.hidden = true;
-            // clear so we don't send stale data
+            // clear so no stale data
             first.value = '';
             last.value = '';
         }
