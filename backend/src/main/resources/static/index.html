@@ -1,133 +1,144 @@
 <!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <title>C-SIDE – Register</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <link href="/css/theme.css" rel="stylesheet"/>
-    <style>
-        #athleteFields { transition: opacity 120ms ease; }
-        #athleteFields[hidden] { display: none; opacity: 0; }
-    </style>
+  <meta charset="UTF-8" />
+  <title>C-SIDE — Concussion Sideline Injury Detection & Evaluation</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link href="/css/theme.css" rel="stylesheet" />
+  <!-- Optional: add this file (below) for homepage-specific styling -->
+  <link href="/css/home.css" rel="stylesheet" />
 </head>
+
 <body>
-<div class="container">
-    <div class="header">
-        <h1>Register</h1>
-        <div class="spacer"></div>
-        <a href="/login.html">Have an account? Log in →</a>
-    </div>
+  <div class="container home">
+    <!-- Top Nav -->
+    <header class="home-nav">
+      <div class="brand">
+        <img
+          src="/images/cside-logo.png"
+          alt="C-SIDE logo — Concussion Sideline Injury Detection & Evaluation"
+          class="brand-logo"
+        />
+      </div>
 
-    <div class="card extra-right">
-        <h2>Create your account</h2>
+      <nav class="home-actions" aria-label="Primary actions">
+        <a class="btn ghost" href="/login.html">Log in</a>
+        <a class="btn primary" href="/register.html">Create account</a>
+      </nav>
+    </header>
 
-        <div class="grid two">
-            <div>
-                <label>Email</label>
-                <input id="regEmail" type="email" class="input" placeholder="you@example.org" required/>
-            </div>
-            <div>
-                <label>Password</label>
-                <input id="regPassword" type="password" class="input" placeholder="********" required minlength="8"/>
-            </div>
+    <!-- Hero -->
+    <section class="home-hero card">
+      <div class="hero-text">
+        <h1>Fast, organized concussion screening support for the sideline.</h1>
+        <p class="muted">
+          C-SIDE is designed to help teams capture symptom checks, baseline vs. active testing,
+          and follow-up notes in a consistent workflow.
+        </p>
+
+        <div class="hero-cta">
+          <a class="btn primary" href="/register.html">Get started</a>
+          <a class="btn ghost" href="#mtbi">Learn about mTBI</a>
         </div>
 
-        <div class="grid two" style="margin-top:.5rem;">
-            <div>
-                <label>Role</label>
-                <select id="regRole" class="input">
-                    <option value="ATHLETE">ATHLETE</option>
-                    <option value="TRAINER">TRAINER</option>
-                </select>
-            </div>
-            <div>
-                <label>Organization</label>
-                <input id="regOrg" class="input" placeholder="Example Org"/>
-            </div>
+        <p class="disclaimer">
+          <strong>Important:</strong> This site is for informational and workflow support only and is
+          not a substitute for evaluation by a qualified clinician.
+        </p>
+      </div>
+
+      <div class="hero-side">
+        <div class="stat-grid" aria-label="Key points">
+          <div class="stat">
+            <div class="stat-title">Goal</div>
+            <div class="stat-value">Early Recognition</div>
+            <div class="stat-sub">Catch concerns sooner, document clearly.</div>
+          </div>
+          <div class="stat">
+            <div class="stat-title">Focus</div>
+            <div class="stat-value">Consistency</div>
+            <div class="stat-sub">Repeatable checks, organized records.</div>
+          </div>
+          <div class="stat">
+            <div class="stat-title">Use</div>
+            <div class="stat-value">Sideline & Clinic</div>
+            <div class="stat-sub">Quick entry when time is tight.</div>
+          </div>
         </div>
+      </div>
+    </section>
 
-        <!-- Athlete-only fields (shown only when role = ATHLETE) -->
-        <div id="athleteFields" class="grid two" style="margin-top:.5rem;">
-            <div>
-                <label>First name</label>
-                <input id="regFirst" class="input" placeholder="Alex" autocomplete="given-name"/>
-            </div>
-            <div>
-                <label>Last name</label>
-                <input id="regLast" class="input" placeholder="Runner" autocomplete="family-name"/>
-            </div>
-        </div>
+    <!-- mTBI info -->
+    <section id="mtbi" class="home-section">
+      <h2>Mild traumatic brain injury (mTBI) in plain language</h2>
+      <div class="grid three">
+        <article class="card">
+          <h3>What it is</h3>
+          <p>
+            An mTBI (often called a concussion) can happen after a blow or jolt to the head or body
+            that affects brain function. Symptoms may appear immediately or develop over hours.
+          </p>
+        </article>
 
-        <div style="margin-top:1rem; display:flex; gap:.75rem; align-items:center;">
-            <button class="btn" onclick="register()">Create Account</button>
-            <span id="msg" class="msg"></span>
-        </div>
-        <pre id="regOut" class="note" style="white-space:pre-wrap;"></pre>
-    </div>
-</div>
+        <article class="card">
+          <h3>Why it’s missed</h3>
+          <p>
+            People may “feel fine” at first, minimize symptoms, or not realize that issues like
+            headache, fogginess, irritability, light sensitivity, or sleep changes can be related.
+          </p>
+        </article>
 
-<script>
-    // Toggle athlete-only fields visibility + requiredness
-    function syncAthleteFields() {
-        const role = document.getElementById('regRole').value;
-        const group = document.getElementById('athleteFields');
-        const first = document.getElementById('regFirst');
-        const last  = document.getElementById('regLast');
-        const isAthlete = role === 'ATHLETE';
+        <article class="card">
+          <h3>Why it matters</h3>
+          <p>
+            Continuing activity while symptomatic can increase risk—worsening symptoms, prolonged recovery,
+            or additional injury. Early recognition helps guide rest, monitoring, and safe return-to-play decisions.
+          </p>
+        </article>
+      </div>
+    </section>
 
-        // show/hide
-        if (isAthlete) {
-            group.hidden = false;
-        } else {
-            group.hidden = true;
-            // clear so no stale data
-            first.value = '';
-            last.value = '';
-        }
+    <!-- Dangers of going undiagnosed -->
+    <section class="home-section">
+      <h2>The dangers of going undiagnosed</h2>
+      <div class="grid two">
+        <article class="card">
+          <h3>Common consequences</h3>
+          <ul class="list">
+            <li>Returning to play too soon and taking another hit</li>
+            <li>Symptoms lasting longer than expected due to inadequate rest and monitoring</li>
+            <li>School/work performance issues from attention, memory, or sleep disruption</li>
+            <li>Underreporting symptoms because there’s no consistent check-in process</li>
+          </ul>
+        </article>
 
-        // required only when athlete
-        first.required = isAthlete;
-        last.required  = isAthlete;
-    }
+        <article class="card">
+          <h3>When to seek urgent care</h3>
+          <p class="muted">If any of the following are present after a head injury, seek emergency evaluation:</p>
+          <ul class="list">
+            <li>Worsening headache, repeated vomiting, or increasing confusion</li>
+            <li>Loss of consciousness, seizure, or severe drowsiness</li>
+            <li>Weakness/numbness, slurred speech, or uneven pupils</li>
+            <li>Neck pain with neurologic symptoms</li>
+          </ul>
+        </article>
+      </div>
+    </section>
 
-    // Run on load + when role changes
-    document.addEventListener('DOMContentLoaded', () => {
-        document.getElementById('regRole').addEventListener('change', syncAthleteFields);
-        syncAthleteFields();
-    });
+    <!-- Footer -->
+    <footer class="home-footer">
+      <div class="muted">
+        © <span id="year"></span> C-SIDE — Concussion Sideline Injury Detection & Evaluation
+      </div>
+      <div class="footer-links">
+        <a href="/login.html">Log in</a>
+        <a href="/register.html">Create account</a>
+      </div>
+    </footer>
+  </div>
 
-    async function register() {
-        // Ensure required flags are correct right before submit
-        syncAthleteFields();
-
-        const body = {
-            email: document.getElementById('regEmail').value.trim(),
-            password: document.getElementById('regPassword').value,
-            role: document.getElementById('regRole').value,
-            organization: document.getElementById('regOrg').value || 'Example Org',
-            firstName: document.getElementById('regFirst').value,
-            lastName: document.getElementById('regLast').value
-        };
-
-        const res = await fetch('/api/auth/register', {
-            method: 'POST',
-            headers: {'Content-Type':'application/json'},
-            body: JSON.stringify(body),
-            credentials: 'include'
-        });
-
-        const text = await res.text();
-        document.getElementById('regOut').textContent = res.status + '\n' + text;
-
-        const msg = document.getElementById('msg');
-        if (res.ok) {
-            msg.className='msg ok';
-            msg.textContent='Registered! You can now log in.';
-        } else {
-            msg.className='msg warn';
-            msg.textContent='Registration failed — please check your inputs.';
-        }
-    }
-</script>
+  <script>
+    document.getElementById("year").textContent = new Date().getFullYear();
+  </script>
 </body>
 </html>
