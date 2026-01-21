@@ -1,0 +1,124 @@
+.home-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 0 10px 0;
+}
+
+.brand-logo {
+  height: 84px;
+  width: auto;
+  display: block;
+}
+
+.home-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 14px;
+  border-radius: 12px;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.btn.primary {
+  border: 0;
+}
+
+.btn.ghost {
+  background: transparent;
+}
+
+.home-hero {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 18px;
+  padding: 22px;
+  align-items: start;
+}
+
+.hero-text h1 {
+  margin: 0 0 10px 0;
+  line-height: 1.15;
+}
+
+.hero-cta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 14px 0 12px 0;
+}
+
+.disclaimer {
+  font-size: 0.95rem;
+  margin: 0;
+  opacity: 0.9;
+}
+
+.home-section {
+  margin: 22px 0;
+}
+
+.stat-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.stat {
+  padding: 14px;
+  border-radius: 14px;
+}
+
+.stat-title {
+  font-size: 0.9rem;
+  opacity: 0.8;
+}
+
+.stat-value {
+  font-size: 1.15rem;
+  font-weight: 800;
+  margin-top: 4px;
+}
+
+.stat-sub {
+  font-size: 0.95rem;
+  opacity: 0.85;
+  margin-top: 4px;
+}
+
+.list {
+  margin: 10px 0 0 18px;
+}
+
+.home-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 0 28px 0;
+}
+
+.footer-links {
+  display: flex;
+  gap: 14px;
+}
+
+@media (max-width: 900px) {
+  .home-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .brand-logo {
+    height: 70px;
+  }
+
+  .home-footer {
+    flex-direction: column;
+  }
+}
