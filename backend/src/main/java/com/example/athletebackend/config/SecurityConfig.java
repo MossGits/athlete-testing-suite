@@ -29,7 +29,7 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())             // dev-only
 
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/", "/index.html", "/login.html", "/static/**", "/css/**", "/js/**").permitAll()
+                        .requestMatchers(  "/", "/index.html", "/login.html", "/static/**", "/css/**", "/js/**", "/images/**", "/favicon.ico").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/admin/**").hasAnyRole("TRAINER", "ATHLETE")
                         .anyRequest().authenticated()
