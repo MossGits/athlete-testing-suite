@@ -29,7 +29,7 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())             // dev-only
 
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(  "/", "/index.html", "/login.html", "/static/**", "/css/**", "/js/**", "/images/**", "/favicon.ico").permitAll()
+                        .requestMatchers(  "/", "/index.html", "/login.html", "/register.html", "/static/**", "/css/**", "/js/**", "/images/**", "/favicon.ico").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/admin/**").hasAnyRole("TRAINER", "ATHLETE")
                         .anyRequest().authenticated()
@@ -68,7 +68,6 @@ public class SecurityConfig {
         return new WebMvcConfigurer() {
             @Override public void addCorsMappings(CorsRegistry registry) {
                 registry.addMapping("/**")
-                        // Use patterns so credentials are allowed with wildcards
                         .allowedOriginPatterns(
                                 "http://localhost:*",
                                 "https://localhost:*",
