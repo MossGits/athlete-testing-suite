@@ -8,33 +8,39 @@
 </head>
 <body>
 <div class="container">
-   <div class="header">
-        <h1>Login</h1>
-        <div class="spacer"></div>
-       
-        <div style="display:flex; gap:.75rem; align-items:center;">
-            <a href="/">Home</a>
-            <a href="/register.html">Return to Register</a>
-        </div>
-   </div>
 
-    <div class="card" style="max-width:640px;">
-        <div class="grid two">
-            <div>
-                <label>Email</label>
-                <input id="loginEmail" type="email" class="input" placeholder="you@example.org"/>
-            </div>
-            <div>
-                <label>Password</label>
-                <input id="loginPassword" type="password" class="input" placeholder="********"/>
+    <!-- NEW: wrapper forces header + card to share the same width -->
+    <div style="max-width:640px; margin: 0 auto;">
+
+        <div class="header">
+            <h1>Login</h1>
+            <div class="spacer"></div>
+
+            <div style="display:flex; gap:.75rem; align-items:center;">
+                <a href="/">Home</a>
+                <a href="/register.html">Return to Register</a>
             </div>
         </div>
 
-        <div style="margin-top:1rem; display:flex; gap:.75rem; align-items:center;">
-            <button class="btn" onclick="login()">Login</button>
-            <span id="msg" class="msg warn"></span>
+        <div class="card">
+            <div class="grid two">
+                <div>
+                    <label>Email</label>
+                    <input id="loginEmail" type="email" class="input" placeholder="you@example.org"/>
+                </div>
+                <div>
+                    <label>Password</label>
+                    <input id="loginPassword" type="password" class="input" placeholder="********"/>
+                </div>
+            </div>
+
+            <div style="margin-top:1rem; display:flex; gap:.75rem; align-items:center;">
+                <button class="btn" onclick="login()">Login</button>
+                <span id="msg" class="msg warn"></span>
+            </div>
+            <pre id="out" class="note" style="white-space:pre-wrap;"></pre>
         </div>
-        <pre id="out" class="note" style="white-space:pre-wrap;"></pre>
+
     </div>
 </div>
 
