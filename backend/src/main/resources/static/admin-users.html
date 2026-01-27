@@ -22,7 +22,7 @@
 
   <!-- ATHLETE VIEW -->
   <div id="athleteView" class="card" hidden>
-    <h2>Past Muse 2 Tests</h2>
+    <h2>Diagnostic Tests</h2>
     <p class="note" style="margin-top:.25rem;">
       Select a test to view details. (Launching the live test will be added later.)
     </p>
@@ -61,7 +61,7 @@
         <div id="selectedAthleteCard" class="note">Select an athlete to begin.</div>
 
         <div style="margin-top: 1rem;">
-          <h3>Current Muse 2 Test</h3>
+          <h3>Current Diagnostic Test</h3>
           <div class="note" style="margin-bottom:.5rem;">
             The live test integration will be added later. These controls are placeholders.
           </div>
@@ -75,7 +75,7 @@
         </div>
 
         <div style="margin-top: 1.25rem;">
-          <h3>Past Muse 2 Tests</h3>
+          <h3>Past Diagnostic Tests</h3>
           <div id="trainerTestsEmpty" class="note">Select an athlete to load tests.</div>
           <div id="trainerTestsList" class="list"></div>
           <pre id="trainerTestDetail" class="note" style="white-space: pre-wrap; margin-top:.75rem;" hidden></pre>
@@ -123,7 +123,7 @@
     return { ok: res.ok, status: res.status, text, data };
   }
 
-  // ✅ NEW: robust role detection (handles "ATHLETE", "ROLE_ATHLETE", arrays, authorities)
+  // Handles "ATHLETE", "ROLE_ATHLETE", arrays, authorities
   function normalizedRoleString(me) {
     const raw =
       me?.role ??
@@ -156,13 +156,13 @@
     const roleStr = normalizedRoleString(me) || '(unknown role)';
     document.getElementById('who').textContent = `${me.email} • ${roleStr}`;
 
-    // ✅ NEW: always start hidden (prevents any mis-render / flash)
+    // Always start hidden
     const athleteEl = document.getElementById('athleteView');
     const trainerEl = document.getElementById('trainerView');
     athleteEl.hidden = true;
     trainerEl.hidden = true;
 
-    // ✅ NEW: show EXACTLY one dashboard, and remove the other from the DOM entirely
+    // Show EXACTLY one dashboard, and remove the other from the DOM entirely
     if (hasRole(me, 'ATHLETE')) {
       athleteEl.hidden = false;
       trainerEl.remove();            // athlete can never see trainer UI
