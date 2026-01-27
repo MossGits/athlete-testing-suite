@@ -1,106 +1,383 @@
 <!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8"/>
-    <title>Account Dashboard</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1"/>
-    <link href="/css/theme.css" rel="stylesheet"/>
+  <meta charset="UTF-8"/>
+  <title>Account Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <link href="/css/theme.css" rel="stylesheet"/>
 </head>
+
 <body>
 <div class="container">
-    <div class="header">
-        <h1>Account Dashboard</h1>
-        <div class="spacer"></div>
-        <span id="who" class="pill"></span>
-        <a href="/" class="nav">Home</a>
-        <button class="btn ghost" onclick="logout()">Logout</button>
-    </div>
+  <div class="header">
+    <h1>Account Dashboard</h1>
+    <div class="spacer"></div>
+    <span id="who" class="pill"></span>
+    <a href="/" class="nav">Home</a>
+    <button class="btn ghost" onclick="logout()">Logout</button>
+  </div>
 
-    <div class="card">
-        <div class="navrow">
-            <button class="btn" onclick="refreshAll()">Refresh</button>
-            <span id="msg" class="msg"></span>
+  <!-- Only used for errors / notices. No "Loaded ✔" message anymore. -->
+  <div id="msg" class="msg" style="margin-bottom: .75rem;"></div>
+
+  <!-- ATHLETE VIEW -->
+  <div id="athleteView" class="card" hidden>
+    <h2>Past Muse 2 Tests</h2>
+    <p class="note" style="margin-top:.25rem;">
+      Select a test to view details. (Launching the live test will be added later.)
+    </p>
+
+    <div class="grid two" style="margin-top: 1rem;">
+      <div>
+        <div id="athleteTestsEmpty" class="note" hidden>No tests found.</div>
+        <div id="athleteTestsList" class="list"></div>
+      </div>
+
+      <div>
+        <h3 style="margin-top:0;">Test Details</h3>
+        <pre id="athleteTestDetail" class="note" style="white-space: pre-wrap;">Select a test on the left to view it here.</pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- TRAINER VIEW -->
+  <div id="trainerView" class="card" hidden>
+    <h2>Trainer Dashboard</h2>
+    <p class="note" style="margin-top:.25rem;">
+      Select an athlete to view their past tests and manage a current Muse 2 test session.
+    </p>
+
+    <div class="grid two" style="margin-top: 1rem;">
+      <!-- Athlete list -->
+      <div>
+        <h3 style="margin-top:0;">Athletes</h3>
+        <div id="athletesEmpty" class="note" hidden>No athletes found for your organization.</div>
+        <div id="athletesList" class="list"></div>
+      </div>
+
+      <!-- Athlete detail -->
+      <div>
+        <h3 style="margin-top:0;">Selected Athlete</h3>
+        <div id="selectedAthleteCard" class="note">Select an athlete to begin.</div>
+
+        <div style="margin-top: 1rem;">
+          <h3>Current Muse 2 Test</h3>
+          <div class="note" style="margin-bottom:.5rem;">
+            The live test integration will be added later. These controls are placeholders.
+          </div>
+
+          <div style="display:flex; gap:.5rem; flex-wrap:wrap; align-items:center;">
+            <button id="btnStartTest" class="btn" onclick="startCurrentTest()" disabled>Start Test</button>
+            <button id="btnSaveTest" class="btn" onclick="saveCurrentTest()" disabled>Save</button>
+            <button id="btnDiscardTest" class="btn ghost" onclick="discardCurrentTest()" disabled>Discard</button>
+            <span id="currentTestStatus" class="pill" style="margin-left:auto;">Idle</span>
+          </div>
         </div>
 
-        <div class="table-wrap">
-            <table id="tbl" hidden>
-                <thead>
-                <tr>
-                    <th>Email</th>
-                    <th>Role</th>
-                    <th>Org</th>
-                    <th>First</th>
-                    <th>Last</th>
-                </tr>
-                </thead>
-                <tbody id="rows"></tbody>
-            </table>
+        <div style="margin-top: 1.25rem;">
+          <h3>Past Muse 2 Tests</h3>
+          <div id="trainerTestsEmpty" class="note">Select an athlete to load tests.</div>
+          <div id="trainerTestsList" class="list"></div>
+          <pre id="trainerTestDetail" class="note" style="white-space: pre-wrap; margin-top:.75rem;" hidden></pre>
         </div>
-
-        <pre id="detail" class="note" hidden></pre>
+      </div>
     </div>
+  </div>
 </div>
 
 <script>
-    async function refreshAll() {
-        setMsg('');
-        setDetail('');
+  let me = null;
+  let selectedAthlete = null;
+  let currentTestState = { running: false };
 
-        const whoRes = await fetch('/api/auth/me', { credentials: 'include' });
-        if (!whoRes.ok) {
-            setMsg('Not authenticated. Redirecting to login…','warn');
-            setDetail('GET /api/auth/me -> HTTP ' + whoRes.status + '\\n' + await whoRes.text());
-            setTimeout(() => window.location.href='/login.html', 900);
-            return;
-        }
-        const who = await whoRes.json();
-        document.getElementById('who').textContent = `${who.email} • ${who.role}`;
+  function setMsg(text, type) {
+    const el = document.getElementById('msg');
+    el.className = 'msg ' + (type || '');
+    el.textContent = text || '';
+    el.style.display = text ? 'block' : 'none';
+  }
 
-        const accRes = await fetch('/api/admin/accounts', { credentials: 'include' });
-        if (!accRes.ok) {
-            setMsg('Failed to load accounts.','warn');
-            setDetail('GET /api/admin/accounts -> HTTP ' + accRes.status + '\\n' + await accRes.text());
-            return;
-        }
-        const accounts = await accRes.json();
+  function fmtDateTime(iso) {
+    if (!iso) return 'Unknown date';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return String(iso);
+    return d.toLocaleString(undefined, {
+      year: 'numeric', month: 'short', day: '2-digit',
+      hour: '2-digit', minute: '2-digit'
+    });
+  }
 
-        const tbody = document.getElementById('rows');
-        tbody.innerHTML = '';
-        accounts.forEach(a => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-          <td>${a.email ?? ''}</td>
-          <td>${a.role ?? ''}</td>
-          <td>${a.organizationName ?? ''}</td>
-          <td>${a.firstName ?? ''}</td>
-          <td>${a.lastName ?? ''}</td>
-        `;
-            tbody.appendChild(tr);
-        });
+  function sortNewestFirst(arr, key) {
+    return [...arr].sort((a, b) => {
+      const ta = new Date(a?.[key] ?? a?.dateTime ?? a?.createdAt ?? 0).getTime();
+      const tb = new Date(b?.[key] ?? b?.dateTime ?? b?.createdAt ?? 0).getTime();
+      return tb - ta;
+    });
+  }
 
-        document.getElementById('tbl').hidden = false;
-        setMsg('Loaded ✔','ok');
+  async function fetchJson(url) {
+    const res = await fetch(url, { credentials: 'include' });
+    const text = await res.text();
+    let data = null;
+    try { data = text ? JSON.parse(text) : null; } catch { data = null; }
+    return { ok: res.ok, status: res.status, text, data };
+  }
+
+  async function init() {
+    setMsg('');
+
+    // Who am I
+    const whoRes = await fetchJson('/api/auth/me');
+    if (!whoRes.ok) {
+      setMsg('Not authenticated. Redirecting to login…', 'warn');
+      setTimeout(() => window.location.href = '/login.html', 700);
+      return;
     }
 
-    async function logout(){
-        try{
-            const res = await fetch('/api/auth/logout', { method:'POST', credentials:'include' });
-            if(res.ok){ window.location.href='/login.html'; }
-        } catch {}
+    me = whoRes.data;
+    document.getElementById('who').textContent = `${me.email} • ${me.role}`;
+
+    // Show the appropriate dashboard
+    if ((me.role || '').toUpperCase() === 'ATHLETE') {
+      document.getElementById('athleteView').hidden = false;
+      document.getElementById('trainerView').hidden = true;
+      await loadAthleteTests();
+    } else {
+      document.getElementById('athleteView').hidden = true;
+      document.getElementById('trainerView').hidden = false;
+      await loadTrainerAthletes();
+    }
+  }
+
+  async function loadAthleteTests() {
+    // Try a likely endpoint; if not available, show a helpful placeholder
+    const listEl = document.getElementById('athleteTestsList');
+    const emptyEl = document.getElementById('athleteTestsEmpty');
+    listEl.innerHTML = '';
+    emptyEl.hidden = true;
+
+    const r = await fetchJson('/api/muse/tests'); // TODO: implement later
+    if (!r.ok) {
+      emptyEl.hidden = false;
+      emptyEl.textContent = 'Tests API not available yet (expected GET /api/muse/tests).';
+      return;
     }
 
-    function setMsg(text,type){
-        const el = document.getElementById('msg');
-        el.className = 'msg ' + (type || '');
-        el.textContent = text || '';
-    }
-    function setDetail(text){
-        const el = document.getElementById('detail');
-        el.hidden = !text;
-        el.textContent = text || '';
+    const tests = Array.isArray(r.data) ? r.data : [];
+    const ordered = sortNewestFirst(tests, 'startedAt');
+
+    if (ordered.length === 0) {
+      emptyEl.hidden = false;
+      return;
     }
 
-    refreshAll();
+    ordered.forEach(t => {
+      const when = fmtDateTime(t.startedAt || t.dateTime || t.createdAt);
+      const label = t.label || 'Muse 2 Test';
+      const btn = document.createElement('button');
+      btn.className = 'btn ghost';
+      btn.style.width = '100%';
+      btn.style.justifyContent = 'space-between';
+      btn.style.marginBottom = '.5rem';
+      btn.innerHTML = `<span>${label}</span><span class="pill">${when}</span>`;
+      btn.onclick = () => showAthleteTestDetail(t);
+      listEl.appendChild(btn);
+    });
+  }
+
+  function showAthleteTestDetail(test) {
+    const el = document.getElementById('athleteTestDetail');
+    const when = fmtDateTime(test.startedAt || test.dateTime || test.createdAt);
+    el.textContent =
+      `Test: ${test.label || 'Muse 2 Test'}\n` +
+      `Date/Time: ${when}\n` +
+      `\n` +
+      `Details:\n` +
+      `${test.summary || test.notes || '(No additional details yet.)'}\n` +
+      `\n` +
+      `(Raw payload)\n` +
+      JSON.stringify(test, null, 2);
+  }
+
+  async function loadTrainerAthletes() {
+    const listEl = document.getElementById('athletesList');
+    const emptyEl = document.getElementById('athletesEmpty');
+    listEl.innerHTML = '';
+    emptyEl.hidden = true;
+
+    // Preferred endpoint (you can implement later)
+    let r = await fetchJson('/api/trainer/athletes');
+
+    // Fallback: use your existing accounts endpoint, then filter
+    if (!r.ok) r = await fetchJson('/api/admin/accounts');
+
+    if (!r.ok) {
+      emptyEl.hidden = false;
+      emptyEl.textContent = 'Unable to load athlete list.';
+      setMsg(`Failed to load athletes (HTTP ${r.status}).`, 'warn');
+      return;
+    }
+
+    const all = Array.isArray(r.data) ? r.data : [];
+
+    // Filter to athletes in the trainer's organization if possible
+    const myOrg = (me.organizationName || me.org || '').toLowerCase();
+    const athletes = all.filter(a => {
+      const role = (a.role || '').toUpperCase();
+      if (role !== 'ATHLETE') return false;
+
+      if (!myOrg) return true; // no org info available, show all athletes
+      const aOrg = (a.organizationName || a.org || '').toLowerCase();
+      return aOrg === myOrg;
+    });
+
+    if (athletes.length === 0) {
+      emptyEl.hidden = false;
+      return;
+    }
+
+    athletes.forEach(a => {
+      const name = `${a.firstName || ''} ${a.lastName || ''}`.trim() || '(No name)';
+      const email = a.email || '';
+      const btn = document.createElement('button');
+      btn.className = 'btn ghost';
+      btn.style.width = '100%';
+      btn.style.justifyContent = 'space-between';
+      btn.style.marginBottom = '.5rem';
+      btn.innerHTML = `<span>${name}</span><span class="pill">${email}</span>`;
+      btn.onclick = () => selectAthlete(a);
+      listEl.appendChild(btn);
+    });
+  }
+
+  async function selectAthlete(a) {
+    selectedAthlete = a;
+
+    const name = `${a.firstName || ''} ${a.lastName || ''}`.trim() || '(No name)';
+    const email = a.email || '';
+    const org = a.organizationName || a.org || '';
+
+    document.getElementById('selectedAthleteCard').className = 'note';
+    document.getElementById('selectedAthleteCard').textContent =
+      `${name}\n${email}${org ? '\n' + org : ''}`;
+
+    // Enable current-test controls (still placeholders)
+    document.getElementById('btnStartTest').disabled = false;
+    document.getElementById('btnSaveTest').disabled = true;
+    document.getElementById('btnDiscardTest').disabled = true;
+    document.getElementById('currentTestStatus').textContent = 'Idle';
+
+    // Load tests
+    await loadTrainerTestsForSelectedAthlete();
+  }
+
+  async function loadTrainerTestsForSelectedAthlete() {
+    const listEl = document.getElementById('trainerTestsList');
+    const emptyEl = document.getElementById('trainerTestsEmpty');
+    const detailEl = document.getElementById('trainerTestDetail');
+
+    listEl.innerHTML = '';
+    detailEl.hidden = true;
+
+    if (!selectedAthlete) {
+      emptyEl.hidden = false;
+      emptyEl.textContent = 'Select an athlete to load tests.';
+      return;
+    }
+
+    emptyEl.hidden = true;
+
+    // Preferred endpoint (implement later)
+    const id = selectedAthlete.id || selectedAthlete.accountId || selectedAthlete.email;
+    let r = await fetchJson(`/api/trainer/athletes/${encodeURIComponent(id)}/tests`);
+
+    // Fallback: none (we don't want to guess too hard). Show placeholder.
+    if (!r.ok) {
+      emptyEl.hidden = false;
+      emptyEl.textContent = 'Tests API not available yet (expected GET /api/trainer/athletes/{id}/tests).';
+      return;
+    }
+
+    const tests = Array.isArray(r.data) ? r.data : [];
+    const ordered = sortNewestFirst(tests, 'startedAt');
+
+    if (ordered.length === 0) {
+      emptyEl.hidden = false;
+      emptyEl.textContent = 'No tests found for this athlete.';
+      return;
+    }
+
+    ordered.forEach(t => {
+      const when = fmtDateTime(t.startedAt || t.dateTime || t.createdAt);
+      const label = t.label || 'Muse 2 Test';
+      const btn = document.createElement('button');
+      btn.className = 'btn ghost';
+      btn.style.width = '100%';
+      btn.style.justifyContent = 'space-between';
+      btn.style.marginBottom = '.5rem';
+      btn.innerHTML = `<span>${label}</span><span class="pill">${when}</span>`;
+      btn.onclick = () => showTrainerTestDetail(t);
+      listEl.appendChild(btn);
+    });
+  }
+
+  function showTrainerTestDetail(test) {
+    const el = document.getElementById('trainerTestDetail');
+    const when = fmtDateTime(test.startedAt || test.dateTime || test.createdAt);
+    el.hidden = false;
+    el.textContent =
+      `Test: ${test.label || 'Muse 2 Test'}\n` +
+      `Date/Time: ${when}\n` +
+      `\n` +
+      `Details:\n` +
+      `${test.summary || test.notes || '(No additional details yet.)'}\n` +
+      `\n` +
+      `(Raw payload)\n` +
+      JSON.stringify(test, null, 2);
+  }
+
+  // Placeholder current-test controls (wire to real endpoints later)
+  function startCurrentTest() {
+    if (!selectedAthlete) return;
+
+    currentTestState.running = true;
+    document.getElementById('currentTestStatus').textContent = 'Running';
+    document.getElementById('btnStartTest').disabled = true;
+    document.getElementById('btnSaveTest').disabled = false;
+    document.getElementById('btnDiscardTest').disabled = false;
+  }
+
+  function saveCurrentTest() {
+    if (!currentTestState.running) return;
+
+    currentTestState.running = false;
+    document.getElementById('currentTestStatus').textContent = 'Saved (placeholder)';
+    document.getElementById('btnStartTest').disabled = false;
+    document.getElementById('btnSaveTest').disabled = true;
+    document.getElementById('btnDiscardTest').disabled = true;
+
+    // Later: call backend to persist current test -> then refresh test list
+    // loadTrainerTestsForSelectedAthlete();
+  }
+
+  function discardCurrentTest() {
+    if (!currentTestState.running) return;
+
+    currentTestState.running = false;
+    document.getElementById('currentTestStatus').textContent = 'Discarded (placeholder)';
+    document.getElementById('btnStartTest').disabled = false;
+    document.getElementById('btnSaveTest').disabled = true;
+    document.getElementById('btnDiscardTest').disabled = true;
+  }
+
+  async function logout() {
+    try {
+      const res = await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+      if (res.ok) window.location.href = '/login.html';
+    } catch {}
+  }
+
+  init();
 </script>
 </body>
 </html>
