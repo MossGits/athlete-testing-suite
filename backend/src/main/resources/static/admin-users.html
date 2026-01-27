@@ -123,6 +123,23 @@
     return { ok: res.ok, status: res.status, text, data };
   }
 
+  // ✅ NEW: robust role detection (handles "ATHLETE", "ROLE_ATHLETE", arrays, authorities)
+  function normalizedRoleString(me) {
+    const raw =
+      me?.role ??
+      me?.roles ??
+      me?.authorities ??
+      me?.authority ??
+      '';
+
+    if (Array.isArray(raw)) return raw.map(x => String(x)).join(' ').toUpperCase();
+    return String(raw).toUpperCase();
+  }
+
+  function hasRole(me, token) {
+    return normalizedRoleString(me).includes(token.toUpperCase());
+  }
+
   async function init() {
     setMsg('');
 
@@ -135,22 +152,38 @@
     }
 
     me = whoRes.data;
-    document.getElementById('who').textContent = `${me.email} • ${me.role}`;
 
-    // Show the appropriate dashboard
-    if ((me.role || '').toUpperCase() === 'ATHLETE') {
-      document.getElementById('athleteView').hidden = false;
-      document.getElementById('trainerView').hidden = true;
+    const roleStr = normalizedRoleString(me) || '(unknown role)';
+    document.getElementById('who').textContent = `${me.email} • ${roleStr}`;
+
+    // ✅ NEW: always start hidden (prevents any mis-render / flash)
+    const athleteEl = document.getElementById('athleteView');
+    const trainerEl = document.getElementById('trainerView');
+    athleteEl.hidden = true;
+    trainerEl.hidden = true;
+
+    // ✅ NEW: show EXACTLY one dashboard, and remove the other from the DOM entirely
+    if (hasRole(me, 'ATHLETE')) {
+      athleteEl.hidden = false;
+      trainerEl.remove();            // athlete can never see trainer UI
       await loadAthleteTests();
-    } else {
-      document.getElementById('athleteView').hidden = true;
-      document.getElementById('trainerView').hidden = false;
-      await loadTrainerAthletes();
+      return;
     }
+
+    if (hasRole(me, 'TRAINER') || hasRole(me, 'ADMIN')) {
+      trainerEl.hidden = false;
+      athleteEl.remove();            // trainer doesn’t need athlete view
+      await loadTrainerAthletes();
+      return;
+    }
+
+    // Unknown role -> safest default: athlete-style view only
+    setMsg(`Unknown role in /api/auth/me: ${roleStr}`, 'warn');
+    athleteEl.hidden = false;
+    trainerEl.remove();
   }
 
   async function loadAthleteTests() {
-    // Try a likely endpoint; if not available, show a helpful placeholder
     const listEl = document.getElementById('athleteTestsList');
     const emptyEl = document.getElementById('athleteTestsEmpty');
     listEl.innerHTML = '';
@@ -205,10 +238,7 @@
     listEl.innerHTML = '';
     emptyEl.hidden = true;
 
-    // Preferred endpoint (you can implement later)
     let r = await fetchJson('/api/trainer/athletes');
-
-    // Fallback: use your existing accounts endpoint, then filter
     if (!r.ok) r = await fetchJson('/api/admin/accounts');
 
     if (!r.ok) {
@@ -220,13 +250,12 @@
 
     const all = Array.isArray(r.data) ? r.data : [];
 
-    // Filter to athletes in the trainer's organization if possible
     const myOrg = (me.organizationName || me.org || '').toLowerCase();
     const athletes = all.filter(a => {
       const role = (a.role || '').toUpperCase();
       if (role !== 'ATHLETE') return false;
 
-      if (!myOrg) return true; // no org info available, show all athletes
+      if (!myOrg) return true;
       const aOrg = (a.organizationName || a.org || '').toLowerCase();
       return aOrg === myOrg;
     });
@@ -261,13 +290,11 @@
     document.getElementById('selectedAthleteCard').textContent =
       `${name}\n${email}${org ? '\n' + org : ''}`;
 
-    // Enable current-test controls (still placeholders)
     document.getElementById('btnStartTest').disabled = false;
     document.getElementById('btnSaveTest').disabled = true;
     document.getElementById('btnDiscardTest').disabled = true;
     document.getElementById('currentTestStatus').textContent = 'Idle';
 
-    // Load tests
     await loadTrainerTestsForSelectedAthlete();
   }
 
@@ -287,11 +314,9 @@
 
     emptyEl.hidden = true;
 
-    // Preferred endpoint (implement later)
     const id = selectedAthlete.id || selectedAthlete.accountId || selectedAthlete.email;
     let r = await fetchJson(`/api/trainer/athletes/${encodeURIComponent(id)}/tests`);
 
-    // Fallback: none (we don't want to guess too hard). Show placeholder.
     if (!r.ok) {
       emptyEl.hidden = false;
       emptyEl.textContent = 'Tests API not available yet (expected GET /api/trainer/athletes/{id}/tests).';
@@ -355,9 +380,6 @@
     document.getElementById('btnStartTest').disabled = false;
     document.getElementById('btnSaveTest').disabled = true;
     document.getElementById('btnDiscardTest').disabled = true;
-
-    // Later: call backend to persist current test -> then refresh test list
-    // loadTrainerTestsForSelectedAthlete();
   }
 
   function discardCurrentTest() {
