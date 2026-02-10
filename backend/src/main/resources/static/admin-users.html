@@ -290,7 +290,6 @@
         setMuseStatus('Muse: Not connected (cancelled/failed)');
         const b = document.getElementById('museBattery');
         if (b) b.hidden = true;
-        setMsg('Connection attempt ended without connecting.', 'warn');
         updateTrainerButtons();
         return;
       }
