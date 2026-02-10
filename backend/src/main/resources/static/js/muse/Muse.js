@@ -222,11 +222,11 @@ class Muse {
     this.dev = null;
     this.state=0;
   }
-  async connectChar (service,cid,hook) {
-    var c = await service["getCharacteristic"](cid);
-    c["oncharacteristicvaluechanged"] = hook;
-    c["startNotifications"]();
-    return c;
+  async connectChar(service, cid, hook) {
+  var c = await service.getCharacteristic(cid);
+  c.oncharacteristicvaluechanged = hook;
+  await c.startNotifications();   // <— add await
+  return c;
   }
   async connect() {
     if (this.dev||this.state!=0) { return; }
