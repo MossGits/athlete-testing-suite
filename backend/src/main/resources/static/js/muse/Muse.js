@@ -222,99 +222,78 @@ class Muse {
     this.dev = null;
     this.state=0;
   }
-  async connectChar(service, cid, hook) {
-  var c = await service.getCharacteristic(cid);
-  c.oncharacteristicvaluechanged = hook;
-  await c.startNotifications();   // <— add await
-  return c;
+    async connectChar(service, cid, hook) {
+    const c = await service.getCharacteristic(cid);
+    c.oncharacteristicvaluechanged = hook;
+    await c.startNotifications(); // IMPORTANT: await
+    return c;
   }
+
   async connect() {
-  if (this.dev || this.state != 0) { return; }
-  this.state = 1;
-  try {
-    console.log('[MuseJS] requestDevice FE8D...');
-    this.dev = await navigator.bluetooth.requestDevice({
-      filters: [{ services: [this.SERVICE] }],
-    });
-    console.log('[MuseJS] device selected:', this.dev?.name);
+    if (this.dev || this.state !== 0) return;
 
-    console.log('[MuseJS] gatt.connect...');
-    var gatt = await this.dev.gatt.connect();
-    console.log('[MuseJS] gatt connected');
-
-    console.log('[MuseJS] getPrimaryService FE8D...');
-    var service = await gatt.getPrimaryService(this.SERVICE);
-    console.log('[MuseJS] service ok');
-
-    var that = this;
-    this.dev.addEventListener('gattserverdisconnected', function () { that.onDisconnected(); });
-
-    console.log('[MuseJS] subscribe CONTROL...');
-    this.controlChar = await this.connectChar(service, this.CONTROL_CHARACTERISTIC, e => that.controlData(e));
-
-    console.log('[MuseJS] subscribe BATTERY...');
-    await this.connectChar(service, this.BATTERY_CHARACTERISTIC, e => that.batteryData(e));
-
-    console.log('[MuseJS] subscribe GYRO/ACCEL/PPG/EEG...');
-    // (keep the rest as-is)
-
-    console.log('[MuseJS] start() + v1...');
-    await this.start();
-    await this.sendCommand('v1');
-
-    this.state = 2;
-    console.log('[MuseJS] connected OK (state=2)');
-  } catch (err) {
-    console.error('[MuseJS] connect failed at step:', err);
-    this.dev = null;
-    this.state = 0;
-    throw err; // so your UI catch can show it
-  }
-}
-    } catch (error) { 
-      this.dev= null;
-      this.state = 0;
-      return;
-    }
+    this.state = 1;
     try {
-      var gatt = await this.dev["gatt"]["connect"]();
-    } catch (error) {
-      this.dev= null;
+      console.log('[MuseJS] requestDevice services:[FE8D]...');
+      this.dev = await navigator.bluetooth.requestDevice({
+        filters: [{ services: [this.SERVICE] }],
+      });
+      console.log('[MuseJS] device selected:', this.dev?.name);
+
+      console.log('[MuseJS] gatt.connect...');
+      const gatt = await this.dev.gatt.connect();
+      console.log('[MuseJS] gatt connected');
+
+      console.log('[MuseJS] getPrimaryService FE8D...');
+      const service = await gatt.getPrimaryService(this.SERVICE);
+      console.log('[MuseJS] service ok');
+
+      const that = this;
+      this.dev.addEventListener('gattserverdisconnected', function () {
+        that.onDisconnected();
+      });
+
+      console.log('[MuseJS] subscribe CONTROL...');
+      this.controlChar = await this.connectChar(
+        service,
+        this.CONTROL_CHARACTERISTIC,
+        (event) => that.controlData(event)
+      );
+
+      console.log('[MuseJS] subscribe BATTERY...');
+      await this.connectChar(service, this.BATTERY_CHARACTERISTIC, (event) => that.batteryData(event));
+
+      console.log('[MuseJS] subscribe GYROSCOPE...');
+      await this.connectChar(service, this.GYROSCOPE_CHARACTERISTIC, (event) => that.gyroscopeData(event));
+
+      console.log('[MuseJS] subscribe ACCELEROMETER...');
+      await this.connectChar(service, this.ACCELEROMETER_CHARACTERISTIC, (event) => that.accelerometerData(event));
+
+      console.log('[MuseJS] subscribe PPG1/2/3...');
+      await this.connectChar(service, this.PPG1_CHARACTERISTIC, (event) => that.ppgData(0, event));
+      await this.connectChar(service, this.PPG2_CHARACTERISTIC, (event) => that.ppgData(1, event));
+      await this.connectChar(service, this.PPG3_CHARACTERISTIC, (event) => that.ppgData(2, event));
+
+      console.log('[MuseJS] subscribe EEG1..EEG5...');
+      await this.connectChar(service, this.EEG1_CHARACTERISTIC, (event) => that.eegData(0, event));
+      await this.connectChar(service, this.EEG2_CHARACTERISTIC, (event) => that.eegData(1, event));
+      await this.connectChar(service, this.EEG3_CHARACTERISTIC, (event) => that.eegData(2, event));
+      await this.connectChar(service, this.EEG4_CHARACTERISTIC, (event) => that.eegData(3, event));
+      await this.connectChar(service, this.EEG5_CHARACTERISTIC, (event) => that.eegData(4, event));
+
+      console.log('[MuseJS] start() + v1...');
+      await this.start();
+      await this.sendCommand('v1');
+
+      this.state = 2;
+      console.log('[MuseJS] connected OK (state=2)');
+    } catch (err) {
+      console.error('[MuseJS] connect failed:', err);
+      try { this.disconnect(); } catch {}
+      this.dev = null;
       this.state = 0;
-      return;
+      throw err;
     }
-    var service = await gatt["getPrimaryService"](this.SERVICE);
-    var that = this;
-    this.dev.addEventListener('gattserverdisconnected',
-      function () { that.onDisconnected(); } );
-    this.controlChar = await this.connectChar(service,this.CONTROL_CHARACTERISTIC,
-      function (event) { that.controlData(event); } );
-    await this.connectChar(service,this.BATTERY_CHARACTERISTIC,
-      function (event) { that.batteryData(event); } );
-    await this.connectChar(service,this.GYROSCOPE_CHARACTERISTIC,
-      function (event) { that.gyroscopeData(event); } );
-    await this.connectChar(service,this.ACCELEROMETER_CHARACTERISTIC,
-      function (event) { that.accelerometerData(event); } );
-    await this.connectChar(service,this.PPG1_CHARACTERISTIC,
-      function (event) { that.ppgData(0,event); } );
-    await this.connectChar(service,this.PPG2_CHARACTERISTIC,
-      function (event) { that.ppgData(1,event); } );
-    await this.connectChar(service,this.PPG3_CHARACTERISTIC,
-      function (event) { that.ppgData(2,event); } );
-    await this.connectChar(service,this.EEG1_CHARACTERISTIC,
-      function (event) { that.eegData(0,event); } );
-    await this.connectChar(service,this.EEG2_CHARACTERISTIC,
-      function (event) { that.eegData(1,event); } );
-    await this.connectChar(service,this.EEG3_CHARACTERISTIC,
-      function (event) { that.eegData(2,event); } );
-    await this.connectChar(service,this.EEG4_CHARACTERISTIC,
-      function (event) { that.eegData(3,event); } );
-    await this.connectChar(service,this.EEG5_CHARACTERISTIC,
-      function (event) { that.eegData(4,event); } );
-    await this.start();
-    await this.sendCommand('v1');
-    this.state = 2;
   }
-}
 
 // eof
