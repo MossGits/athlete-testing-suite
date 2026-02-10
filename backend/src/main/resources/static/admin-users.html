@@ -5,6 +5,38 @@
   <title>Account Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <link href="/css/theme.css" rel="stylesheet"/>
+
+  <style>
+    .modalOverlay{
+      position:fixed; inset:0;
+      background:rgba(0,0,0,.45);
+      display:flex; align-items:center; justify-content:center;
+      z-index:9999;
+      padding:1rem;
+    }
+    .modalCard{
+      width:min(720px, 100%);
+      background:var(--card, #0f172a);
+      border:1px solid rgba(255,255,255,.08);
+      border-radius:14px;
+      box-shadow:0 20px 60px rgba(0,0,0,.45);
+      padding:1rem;
+    }
+    .modalHeader{
+      display:flex; align-items:center; gap:.75rem;
+    }
+    .modalHeader h3{ margin:0; }
+    .modalCloseRow{
+      margin-left:auto; display:flex; gap:.5rem; align-items:center;
+    }
+    .modalBody{ margin-top:.75rem; }
+    .modalFooter{
+      display:flex; gap:.5rem; flex-wrap:wrap; align-items:center;
+      margin-top:1rem;
+    }
+    .modalFooter .pill{ margin-left:auto; }
+    .hidden{ display:none !important; }
+  </style>
 </head>
 
 <body>
@@ -44,7 +76,7 @@
   <div id="trainerView" class="card" hidden>
     <h2>Trainer Dashboard</h2>
     <p class="note" style="margin-top:.25rem;">
-      Select an athlete to view their past tests and manage a current diagnostic test session.
+      Select an athlete to view their past tests and run a baseline or active diagnostic session.
     </p>
 
     <div class="grid two" style="margin-top: 1rem;">
@@ -61,13 +93,13 @@
         <div id="selectedAthleteCard" class="note">Select an athlete to begin.</div>
 
         <div style="margin-top: 1rem;">
-          <h3>Current Diagnostic Test</h3>
+          <h3>Connect Device</h3>
           <div class="note" style="margin-bottom:.5rem;">
-            Connect the Muse on this device, then start a diagnostic session for the selected athlete.
+            Connect the Muse on this device. After connecting, choose Baseline or Active to open the test window.
           </div>
 
           <!-- Muse controls -->
-          <div style="display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; margin-bottom:.5rem;">
+          <div style="display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; margin-bottom:.75rem;">
             <button id="btnConnectMuse" class="btn" onclick="connectMuse()" disabled>Connect to Muse</button>
             <button id="btnDisconnectMuse" class="btn ghost" onclick="disconnectMuse()" disabled>Disconnect</button>
 
@@ -75,12 +107,13 @@
             <span id="museBattery" class="pill" hidden>Battery: —</span>
           </div>
 
-          <!-- Test controls -->
-          <div style="display:flex; gap:.5rem; flex-wrap:wrap; align-items:center;">
-            <button id="btnStartTest" class="btn" onclick="startCurrentTest()" disabled>Start Test</button>
-            <button id="btnSaveTest" class="btn" onclick="saveCurrentTest()" disabled>Save</button>
-            <button id="btnDiscardTest" class="btn ghost" onclick="discardCurrentTest()" disabled>Discard</button>
-            <span id="currentTestStatus" class="pill" style="margin-left:auto;">Idle</span>
+          <!-- Test type selection (only enabled after Muse connects + athlete selected) -->
+          <div id="testTypeRow" style="display:flex; gap:.5rem; flex-wrap:wrap; align-items:center;">
+            <button id="btnRunBaseline" class="btn" onclick="openTestModal('baseline')" disabled>Run Baseline</button>
+            <button id="btnRunActive" class="btn" onclick="openTestModal('active')" disabled>Run Active</button>
+            <span id="testTypeHint" class="note" style="margin-left:auto;">
+              Select an athlete and connect Muse to enable.
+            </span>
           </div>
         </div>
 
@@ -95,12 +128,51 @@
   </div>
 </div>
 
+<!-- Modal (hidden by default) -->
+<div id="testModal" class="modalOverlay hidden" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+  <div class="modalCard">
+    <div class="modalHeader">
+      <h3 id="modalTitle">Run Test</h3>
+
+      <div class="modalCloseRow">
+        <span id="modalSub" class="pill">—</span>
+        <button class="btn ghost" onclick="closeTestModal()">Close</button>
+      </div>
+    </div>
+
+    <div class="modalBody">
+      <div class="note" id="modalNote">
+        Use Start to begin capturing data from the connected Muse.
+      </div>
+
+      <div style="margin-top:.75rem;">
+        <pre id="modalDebug" class="note" style="white-space: pre-wrap;">Status: Idle</pre>
+      </div>
+
+      <!-- Can later show live signal quality, countdown timers, etc. here -->
+    </div>
+
+    <div class="modalFooter">
+      <button id="modalBtnStart" class="btn" onclick="modalStart()" disabled>Start Test</button>
+      <button id="modalBtnSave" class="btn" onclick="modalSave()" disabled>Save</button>
+      <button id="modalBtnDiscard" class="btn ghost" onclick="modalDiscard()" disabled>Discard</button>
+      <span id="modalStatus" class="pill">Idle</span>
+    </div>
+  </div>
+</div>
+
 <script src="/js/muse/Muse.js"></script>
 
 <script>
   let me = null;
   let selectedAthlete = null;
-  let currentTestState = { running: false };
+
+  // Modal / session state
+  let activeModal = {
+    open: false,
+    type: null,         // 'baseline' | 'active'
+    running: false,
+  };
 
   // --- Muse connection foundation (MuseJS + Web Bluetooth) ---
   let muse = null;
@@ -151,22 +223,19 @@
   function setMuseBattery(pct) {
     const b = document.getElementById('museBattery');
     if (!b) return;
-
     b.hidden = false;
-
-    if (typeof pct === 'number' && isFinite(pct)) {
-      b.textContent = `Battery: ${Math.round(pct)}%`;
-    } else {
-      b.textContent = 'Battery: —';
-    }
+    if (typeof pct === 'number' && isFinite(pct)) b.textContent = `Battery: ${Math.round(pct)}%`;
+    else b.textContent = 'Battery: —';
   }
 
   function updateTrainerButtons() {
     const btnConnect = document.getElementById('btnConnectMuse');
     const btnDisconnect = document.getElementById('btnDisconnectMuse');
-    const btnStart = document.getElementById('btnStartTest');
-    const btnSave = document.getElementById('btnSaveTest');
-    const btnDiscard = document.getElementById('btnDiscardTest');
+
+    // Test type buttons
+    const btnBaseline = document.getElementById('btnRunBaseline');
+    const btnActive = document.getElementById('btnRunActive');
+    const hint = document.getElementById('testTypeHint');
 
     // Connect button: enabled if WebBluetooth exists AND not already connected
     if (btnConnect) btnConnect.disabled = !canUseWebBluetooth() || museConnected;
@@ -174,13 +243,27 @@
     // Disconnect button: enabled only if connected
     if (btnDisconnect) btnDisconnect.disabled = !museConnected;
 
-    // Start test: requires athlete selected + muse connected + not running
-    const canStart = !!selectedAthlete && museConnected && !currentTestState.running;
-    if (btnStart) btnStart.disabled = !canStart;
+    // Baseline/Active: require athlete selected + muse connected + modal not already open
+    const canOpenModal = !!selectedAthlete && museConnected && !activeModal.open;
+    if (btnBaseline) btnBaseline.disabled = !canOpenModal;
+    if (btnActive) btnActive.disabled = !canOpenModal;
 
-    // Save/Discard only when running
-    if (btnSave) btnSave.disabled = !currentTestState.running;
-    if (btnDiscard) btnDiscard.disabled = !currentTestState.running;
+    if (hint) {
+      if (!selectedAthlete) hint.textContent = 'Select an athlete to enable.';
+      else if (!museConnected) hint.textContent = 'Connect Muse to enable.';
+      else if (activeModal.open) hint.textContent = 'Test window open.';
+      else hint.textContent = 'Ready.';
+    }
+
+    // Modal buttons
+    const mStart = document.getElementById('modalBtnStart');
+    const mSave = document.getElementById('modalBtnSave');
+    const mDiscard = document.getElementById('modalBtnDiscard');
+
+    const modalReady = activeModal.open && museConnected && !!selectedAthlete;
+    if (mStart) mStart.disabled = !modalReady || activeModal.running;
+    if (mSave) mSave.disabled = !activeModal.open || !activeModal.running;
+    if (mDiscard) mDiscard.disabled = !activeModal.open || !activeModal.running;
   }
 
   async function connectMuse() {
@@ -195,25 +278,26 @@
       setMuseStatus('Muse: Connecting…');
       updateTrainerButtons();
 
-      // MuseJS must be loaded (from /js/muse/Muse.js)
-      muse = new Muse();
+      muse = new Muse();           
+      await muse.connect();        // triggers device picker
 
-      // This triggers the browser device picker (must be called from a user click)
-      await muse.connect();
+      // This MuseJS sets state=2 on success :contentReference[oaicite:2]{index=2}
+      const connected = muse?.state === 2 || (muse?.dev?.gatt && muse.dev.gatt.connected);
+
+      if (!connected) {
+        museConnected = false;
+        muse = null;
+        setMuseStatus('Muse: Not connected (cancelled/failed)');
+        const b = document.getElementById('museBattery');
+        if (b) b.hidden = true;
+        setMsg('Connection attempt ended without connecting.', 'warn');
+        updateTrainerButtons();
+        return;
+      }
 
       museConnected = true;
       setMuseStatus('Muse: Connected');
-
-      // Battery
       setMuseBattery(muse?.batteryLevel);
-
-      try {
-        if (typeof muse?.getBatteryLevel === 'function') {
-          const pct = await muse.getBatteryLevel();
-          setMuseBattery(pct);
-        }
-      } catch {}
-
       updateTrainerButtons();
     } catch (err) {
       console.error(err);
@@ -231,9 +315,9 @@
     setMsg('');
     try {
       if (muse && typeof muse.disconnect === 'function') {
-        await muse.disconnect();
-      } else if (muse && muse.device?.gatt?.connected) {
-        try { muse.device.gatt.disconnect(); } catch {}
+        muse.disconnect(); 
+      } else if (muse && muse.dev?.gatt?.connected) {
+        try { muse.dev.gatt.disconnect(); } catch {}
       }
     } finally {
       museConnected = false;
@@ -241,9 +325,128 @@
       setMuseStatus('Muse: Disconnected');
       const b = document.getElementById('museBattery');
       if (b) b.hidden = true;
+
+      // If a test window was open, close it when device disconnects
+      if (activeModal.open) closeTestModal(true);
+
       updateTrainerButtons();
     }
   }
+
+  // ---- Modal logic ----
+  function openTestModal(type) {
+    if (!selectedAthlete) {
+      setMsg('Select an athlete first.', 'warn');
+      return;
+    }
+    if (!museConnected) {
+      setMsg('Connect Muse first.', 'warn');
+      return;
+    }
+
+    activeModal.open = true;
+    activeModal.type = type;
+    activeModal.running = false;
+
+    const modal = document.getElementById('testModal');
+    modal.classList.remove('hidden');
+
+    const name = `${selectedAthlete.firstName || ''} ${selectedAthlete.lastName || ''}`.trim() || '(No name)';
+    const email = selectedAthlete.email || '';
+    const label = type === 'baseline' ? 'Baseline Test' : 'Active Test';
+
+    document.getElementById('modalTitle').textContent = label;
+    document.getElementById('modalSub').textContent = name;
+
+    document.getElementById('modalNote').textContent =
+      type === 'baseline'
+        ? 'Baseline will be saved to this athlete. Use Start to begin capture.'
+        : 'Active test will be used for comparison in the completed Python pipeline. Use Start to begin capture.';
+
+    setModalStatus('Idle', `Status: Idle\nType: ${type}\nAthlete: ${name}\nEmail: ${email}`);
+
+    updateTrainerButtons();
+  }
+
+  function closeTestModal(silent) {
+    const modal = document.getElementById('testModal');
+    modal.classList.add('hidden');
+
+    activeModal.open = false;
+    activeModal.type = null;
+    activeModal.running = false;
+
+    if (!silent) setMsg('', '');
+    updateTrainerButtons();
+  }
+
+  function setModalStatus(pillText, debugText) {
+    const pill = document.getElementById('modalStatus');
+    const dbg = document.getElementById('modalDebug');
+    if (pill) pill.textContent = pillText;
+    if (dbg) dbg.textContent = debugText || `Status: ${pillText}`;
+  }
+
+  // Placeholder “Start/Save/Discard” inside modal
+  // Later, Start will begin streaming EEG to backend and/or starting the pipeline.
+  async function modalStart() {
+    if (!activeModal.open) return;
+    if (!museConnected) {
+      setMsg('Muse disconnected. Reconnect to continue.', 'warn');
+      closeTestModal(true);
+      return;
+    }
+
+    activeModal.running = true;
+    setModalStatus('Running', 'Status: Running\nCapturing data from Muse…');
+    updateTrainerButtons();
+
+    // (Later) start streaming chunks from muse.eeg buffers to backend:
+    // muse.eeg[n].read(), etc. :contentReference[oaicite:4]{index=4}
+  }
+
+  async function modalSave() {
+    if (!activeModal.open || !activeModal.running) return;
+
+    // - baseline: save raw EEG under athlete record
+    // - active: store as "active session" for pipeline compare (or save raw too)
+    //
+    // For now, we just show a status message.
+    activeModal.running = false;
+
+    if (activeModal.type === 'baseline') {
+      setModalStatus('Saved', 'Status: Saved\n(Placeholder) Baseline would be saved to athlete.');
+      setMsg('Baseline saved (placeholder).', '');
+    } else {
+      setModalStatus('Saved', 'Status: Saved\n(Placeholder) Active would be forwarded to pipeline compare.');
+      setMsg('Active test captured (placeholder).', '');
+    }
+
+    updateTrainerButtons();
+  }
+
+  async function modalDiscard() {
+    if (!activeModal.open || !activeModal.running) return;
+
+    activeModal.running = false;
+    setModalStatus('Discarded', 'Status: Discarded\nCapture stopped; nothing saved.');
+    setMsg('Test discarded (placeholder).', 'warn');
+    updateTrainerButtons();
+  }
+
+  // Close modal if user clicks overlay background
+  document.addEventListener('click', (e) => {
+    const modal = document.getElementById('testModal');
+    if (!modal || modal.classList.contains('hidden')) return;
+    if (e.target === modal) closeTestModal();
+  });
+
+  // ESC closes modal
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    const modal = document.getElementById('testModal');
+    if (modal && !modal.classList.contains('hidden')) closeTestModal();
+  });
 
   // Handles "ATHLETE", "ROLE_ATHLETE", arrays, authorities
   function normalizedRoleString(me) {
@@ -253,7 +456,6 @@
       me?.authorities ??
       me?.authority ??
       '';
-
     if (Array.isArray(raw)) return raw.map(x => String(x)).join(' ').toUpperCase();
     return String(raw).toUpperCase();
   }
@@ -265,7 +467,6 @@
   async function init() {
     setMsg('');
 
-    // Who am I
     const whoRes = await fetchJson('/api/auth/me');
     if (!whoRes.ok) {
       setMsg('Not authenticated. Redirecting to login…', 'warn');
@@ -278,35 +479,30 @@
     const roleStr = normalizedRoleString(me) || '(unknown role)';
     document.getElementById('who').textContent = `${me.email} • ${roleStr}`;
 
-    // Always start hidden
     const athleteEl = document.getElementById('athleteView');
     const trainerEl = document.getElementById('trainerView');
     athleteEl.hidden = true;
     trainerEl.hidden = true;
 
-    // Show one dashboard, and remove the other from the DOM entirely
     if (hasRole(me, 'ATHLETE')) {
       athleteEl.hidden = false;
-      trainerEl.remove();            // athlete can never see trainer UI
+      trainerEl.remove();
       await loadAthleteTests();
       return;
     }
 
     if (hasRole(me, 'TRAINER') || hasRole(me, 'ADMIN')) {
       trainerEl.hidden = false;
-      athleteEl.remove();            // trainer doesn’t need athlete view
+      athleteEl.remove();
       await loadTrainerAthletes();
 
-      // Initialize Muse button state for trainers
       setMuseStatus('Muse: Disconnected');
       const b = document.getElementById('museBattery');
       if (b) b.hidden = true;
       updateTrainerButtons();
-
       return;
     }
 
-    // Unknown role -> athlete-style view only
     setMsg(`Unknown role in /api/auth/me: ${roleStr}`, 'warn');
     athleteEl.hidden = false;
     trainerEl.remove();
@@ -419,9 +615,8 @@
     document.getElementById('selectedAthleteCard').textContent =
       `${name}\n${email}${org ? '\n' + org : ''}`;
 
-    // Reset current test UI state
-    document.getElementById('currentTestStatus').textContent = 'Idle';
-    currentTestState.running = false;
+    // If a modal is open and the trainer switches athletes, close it to avoid mis-assignments
+    if (activeModal.open) closeTestModal(true);
 
     updateTrainerButtons();
     await loadTrainerTestsForSelectedAthlete();
@@ -488,35 +683,6 @@
       `\n` +
       `(Raw payload)\n` +
       JSON.stringify(test, null, 2);
-  }
-
-  // Current-test controls (still placeholders, gated by Muse connection + selected athlete)
-  function startCurrentTest() {
-    if (!selectedAthlete) return;
-    if (!museConnected) {
-      setMsg('Connect to Muse before starting a test.', 'warn');
-      return;
-    }
-
-    currentTestState.running = true;
-    document.getElementById('currentTestStatus').textContent = 'Running';
-    updateTrainerButtons();
-  }
-
-  function saveCurrentTest() {
-    if (!currentTestState.running) return;
-
-    currentTestState.running = false;
-    document.getElementById('currentTestStatus').textContent = 'Saved (placeholder)';
-    updateTrainerButtons();
-  }
-
-  function discardCurrentTest() {
-    if (!currentTestState.running) return;
-
-    currentTestState.running = false;
-    document.getElementById('currentTestStatus').textContent = 'Discarded (placeholder)';
-    updateTrainerButtons();
   }
 
   async function logout() {
