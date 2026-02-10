@@ -17,7 +17,7 @@
     <button class="btn ghost" onclick="logout()">Logout</button>
   </div>
 
-  <!-- Only used for errors / notices. No "Loaded ✔" message anymore. -->
+  <!-- Only used for errors / notices. -->
   <div id="msg" class="msg" style="margin-bottom: .75rem;"></div>
 
   <!-- ATHLETE VIEW -->
@@ -63,9 +63,19 @@
         <div style="margin-top: 1rem;">
           <h3>Current Diagnostic Test</h3>
           <div class="note" style="margin-bottom:.5rem;">
-            The live test integration will be added later. These controls are placeholders.
+            Connect the Muse on this device, then start a diagnostic session for the selected athlete.
           </div>
 
+          <!-- Muse controls -->
+          <div style="display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; margin-bottom:.5rem;">
+            <button id="btnConnectMuse" class="btn" onclick="connectMuse()" disabled>Connect to Muse</button>
+            <button id="btnDisconnectMuse" class="btn ghost" onclick="disconnectMuse()" disabled>Disconnect</button>
+
+            <span id="museStatus" class="pill" style="margin-left:auto;">Muse: Disconnected</span>
+            <span id="museBattery" class="pill" hidden>Battery: —</span>
+          </div>
+
+          <!-- Test controls -->
           <div style="display:flex; gap:.5rem; flex-wrap:wrap; align-items:center;">
             <button id="btnStartTest" class="btn" onclick="startCurrentTest()" disabled>Start Test</button>
             <button id="btnSaveTest" class="btn" onclick="saveCurrentTest()" disabled>Save</button>
@@ -85,10 +95,16 @@
   </div>
 </div>
 
+<script src="/js/muse/Muse.js"></script>
+
 <script>
   let me = null;
   let selectedAthlete = null;
   let currentTestState = { running: false };
+
+  // --- Muse connection foundation (MuseJS + Web Bluetooth) ---
+  let muse = null;
+  let museConnected = false;
 
   function setMsg(text, type) {
     const el = document.getElementById('msg');
@@ -121,6 +137,112 @@
     let data = null;
     try { data = text ? JSON.parse(text) : null; } catch { data = null; }
     return { ok: res.ok, status: res.status, text, data };
+  }
+
+  function canUseWebBluetooth() {
+    return !!navigator.bluetooth;
+  }
+
+  function setMuseStatus(text) {
+    const s = document.getElementById('museStatus');
+    if (s) s.textContent = text;
+  }
+
+  function setMuseBattery(pct) {
+    const b = document.getElementById('museBattery');
+    if (!b) return;
+
+    b.hidden = false;
+
+    if (typeof pct === 'number' && isFinite(pct)) {
+      b.textContent = `Battery: ${Math.round(pct)}%`;
+    } else {
+      b.textContent = 'Battery: —';
+    }
+  }
+
+  function updateTrainerButtons() {
+    const btnConnect = document.getElementById('btnConnectMuse');
+    const btnDisconnect = document.getElementById('btnDisconnectMuse');
+    const btnStart = document.getElementById('btnStartTest');
+    const btnSave = document.getElementById('btnSaveTest');
+    const btnDiscard = document.getElementById('btnDiscardTest');
+
+    // Connect button: enabled if WebBluetooth exists AND not already connected
+    if (btnConnect) btnConnect.disabled = !canUseWebBluetooth() || museConnected;
+
+    // Disconnect button: enabled only if connected
+    if (btnDisconnect) btnDisconnect.disabled = !museConnected;
+
+    // Start test: requires athlete selected + muse connected + not running
+    const canStart = !!selectedAthlete && museConnected && !currentTestState.running;
+    if (btnStart) btnStart.disabled = !canStart;
+
+    // Save/Discard only when running
+    if (btnSave) btnSave.disabled = !currentTestState.running;
+    if (btnDiscard) btnDiscard.disabled = !currentTestState.running;
+  }
+
+  async function connectMuse() {
+    setMsg('');
+    if (!canUseWebBluetooth()) {
+      setMsg('Web Bluetooth is not available in this browser. Use Chrome or Edge on desktop.', 'warn');
+      setMuseStatus('Muse: Unsupported browser');
+      return;
+    }
+
+    try {
+      setMuseStatus('Muse: Connecting…');
+      updateTrainerButtons();
+
+      // MuseJS must be loaded (from /js/muse/Muse.js)
+      muse = new Muse();
+
+      // This triggers the browser device picker (must be called from a user click)
+      await muse.connect();
+
+      museConnected = true;
+      setMuseStatus('Muse: Connected');
+
+      // Battery
+      setMuseBattery(muse?.batteryLevel);
+
+      try {
+        if (typeof muse?.getBatteryLevel === 'function') {
+          const pct = await muse.getBatteryLevel();
+          setMuseBattery(pct);
+        }
+      } catch {}
+
+      updateTrainerButtons();
+    } catch (err) {
+      console.error(err);
+      museConnected = false;
+      muse = null;
+      setMuseStatus('Muse: Disconnected');
+      const b = document.getElementById('museBattery');
+      if (b) b.hidden = true;
+      setMsg('Muse connection failed or was cancelled.', 'warn');
+      updateTrainerButtons();
+    }
+  }
+
+  async function disconnectMuse() {
+    setMsg('');
+    try {
+      if (muse && typeof muse.disconnect === 'function') {
+        await muse.disconnect();
+      } else if (muse && muse.device?.gatt?.connected) {
+        try { muse.device.gatt.disconnect(); } catch {}
+      }
+    } finally {
+      museConnected = false;
+      muse = null;
+      setMuseStatus('Muse: Disconnected');
+      const b = document.getElementById('museBattery');
+      if (b) b.hidden = true;
+      updateTrainerButtons();
+    }
   }
 
   // Handles "ATHLETE", "ROLE_ATHLETE", arrays, authorities
@@ -162,7 +284,7 @@
     athleteEl.hidden = true;
     trainerEl.hidden = true;
 
-    // Show EXACTLY one dashboard, and remove the other from the DOM entirely
+    // Show one dashboard, and remove the other from the DOM entirely
     if (hasRole(me, 'ATHLETE')) {
       athleteEl.hidden = false;
       trainerEl.remove();            // athlete can never see trainer UI
@@ -174,10 +296,17 @@
       trainerEl.hidden = false;
       athleteEl.remove();            // trainer doesn’t need athlete view
       await loadTrainerAthletes();
+
+      // Initialize Muse button state for trainers
+      setMuseStatus('Muse: Disconnected');
+      const b = document.getElementById('museBattery');
+      if (b) b.hidden = true;
+      updateTrainerButtons();
+
       return;
     }
 
-    // Unknown role -> safest default: athlete-style view only
+    // Unknown role -> athlete-style view only
     setMsg(`Unknown role in /api/auth/me: ${roleStr}`, 'warn');
     athleteEl.hidden = false;
     trainerEl.remove();
@@ -290,11 +419,11 @@
     document.getElementById('selectedAthleteCard').textContent =
       `${name}\n${email}${org ? '\n' + org : ''}`;
 
-    document.getElementById('btnStartTest').disabled = false;
-    document.getElementById('btnSaveTest').disabled = true;
-    document.getElementById('btnDiscardTest').disabled = true;
+    // Reset current test UI state
     document.getElementById('currentTestStatus').textContent = 'Idle';
+    currentTestState.running = false;
 
+    updateTrainerButtons();
     await loadTrainerTestsForSelectedAthlete();
   }
 
@@ -361,15 +490,17 @@
       JSON.stringify(test, null, 2);
   }
 
-  // Placeholder current-test controls (wire to real endpoints later)
+  // Current-test controls (still placeholders, gated by Muse connection + selected athlete)
   function startCurrentTest() {
     if (!selectedAthlete) return;
+    if (!museConnected) {
+      setMsg('Connect to Muse before starting a test.', 'warn');
+      return;
+    }
 
     currentTestState.running = true;
     document.getElementById('currentTestStatus').textContent = 'Running';
-    document.getElementById('btnStartTest').disabled = true;
-    document.getElementById('btnSaveTest').disabled = false;
-    document.getElementById('btnDiscardTest').disabled = false;
+    updateTrainerButtons();
   }
 
   function saveCurrentTest() {
@@ -377,9 +508,7 @@
 
     currentTestState.running = false;
     document.getElementById('currentTestStatus').textContent = 'Saved (placeholder)';
-    document.getElementById('btnStartTest').disabled = false;
-    document.getElementById('btnSaveTest').disabled = true;
-    document.getElementById('btnDiscardTest').disabled = true;
+    updateTrainerButtons();
   }
 
   function discardCurrentTest() {
@@ -387,9 +516,7 @@
 
     currentTestState.running = false;
     document.getElementById('currentTestStatus').textContent = 'Discarded (placeholder)';
-    document.getElementById('btnStartTest').disabled = false;
-    document.getElementById('btnSaveTest').disabled = true;
-    document.getElementById('btnDiscardTest').disabled = true;
+    updateTrainerButtons();
   }
 
   async function logout() {
