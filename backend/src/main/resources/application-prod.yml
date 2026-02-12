@@ -1,15 +1,18 @@
 server:
-
   port: ${PORT:8080}
   forward-headers-strategy: framework
 
 spring:
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/athlete_db}
-    username: ${SPRING_DATASOURCE_USERNAME:athlete_app}
-    password: ${SPRING_DATASOURCE_PASSWORD:change-me}
+    url: jdbc:postgresql://${PGHOST}:${PGPORT}/${PGDATABASE}?sslmode=require
+    username: ${PGUSER}
+    password: ${PGPASSWORD}
+    driver-class-name: org.postgresql.Driver
+
   jpa:
     hibernate:
       ddl-auto: none
+
   flyway:
     enabled: true
+    baseline-on-migrate: true
