@@ -4,7 +4,7 @@ server:
 
 spring:
   datasource:
-    url: jdbc:postgresql://yamanote.proxy.rlwy.net:30709/railway?sslmode=require
+    url: jdbc:postgresql://yamanote.proxy.rlwy.net:30709/railway?sslmode=disable
     username: ${PGUSER}
     password: ${PGPASSWORD}
     driver-class-name: org.postgresql.Driver
