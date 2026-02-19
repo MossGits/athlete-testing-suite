@@ -281,7 +281,7 @@
       muse = new Muse();           
       await muse.connect();        // triggers device picker
 
-      // This MuseJS sets state=2 on success :contentReference[oaicite:2]{index=2}
+      // MuseJS sets state=2 on success :contentReference[oaicite:2]{index=2}
       const connected = muse?.state === 2 || (muse?.dev?.gatt && muse.dev.gatt.connected);
 
       if (!connected) {
@@ -332,8 +332,10 @@
     }
   }
 
-  // ---- Modal logic ----
-  function openTestModal(type) {
+  // Modal logic 
+  
+  //  Test window logic 
+async function openTestModal(type) {
   if (!selectedAthlete) {
     setMsg('Select an athlete first.', 'warn');
     return;
@@ -343,8 +345,25 @@
     return;
   }
 
-  // TEMP for Step 1: generate a fake sessionId until backend endpoint exists
-  const sessionId = crypto.randomUUID();
+  // Create session on backend
+  const res = await fetch('/api/sessions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({
+      mode: type.toUpperCase(),     // "BASELINE" or "ACTIVE"
+      athleteId: selectedAthlete.id
+    })
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => '');
+    setMsg(`Failed to create session (HTTP ${res.status}). ${txt}`, 'warn');
+    return;
+  }
+
+  const data = await res.json();
+  const sessionId = data.sessionId;
 
   const url = (type === 'baseline' ? '/baselinetest.html' : '/activetest.html')
     + `?sessionId=${encodeURIComponent(sessionId)}`
