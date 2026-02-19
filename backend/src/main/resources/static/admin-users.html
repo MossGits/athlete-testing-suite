@@ -334,38 +334,36 @@
 
   // ---- Modal logic ----
   function openTestModal(type) {
-    if (!selectedAthlete) {
-      setMsg('Select an athlete first.', 'warn');
-      return;
-    }
-    if (!museConnected) {
-      setMsg('Connect Muse first.', 'warn');
-      return;
-    }
-
-    activeModal.open = true;
-    activeModal.type = type;
-    activeModal.running = false;
-
-    const modal = document.getElementById('testModal');
-    modal.classList.remove('hidden');
-
-    const name = `${selectedAthlete.firstName || ''} ${selectedAthlete.lastName || ''}`.trim() || '(No name)';
-    const email = selectedAthlete.email || '';
-    const label = type === 'baseline' ? 'Baseline Test' : 'Active Test';
-
-    document.getElementById('modalTitle').textContent = label;
-    document.getElementById('modalSub').textContent = name;
-
-    document.getElementById('modalNote').textContent =
-      type === 'baseline'
-        ? 'Baseline will be saved to this athlete. Use Start to begin capture.'
-        : 'Active test will be used for comparison in the completed Python pipeline. Use Start to begin capture.';
-
-    setModalStatus('Idle', `Status: Idle\nType: ${type}\nAthlete: ${name}\nEmail: ${email}`);
-
-    updateTrainerButtons();
+  if (!selectedAthlete) {
+    setMsg('Select an athlete first.', 'warn');
+    return;
   }
+  if (!museConnected) {
+    setMsg('Connect Muse first.', 'warn');
+    return;
+  }
+
+  // TEMP for Step 1: generate a fake sessionId until backend endpoint exists
+  const sessionId = crypto.randomUUID();
+
+  const url = (type === 'baseline' ? '/baselinetest.html' : '/activetest.html')
+    + `?sessionId=${encodeURIComponent(sessionId)}`
+    + `&mode=${encodeURIComponent(type)}`
+    + `&athleteId=${encodeURIComponent(selectedAthlete.id || '')}`;
+
+  const w = window.open(
+    url,
+    type === 'baseline' ? 'baselineTest' : 'activeTest',
+    'popup=yes,width=900,height=700'
+  );
+
+  if (!w) {
+    setMsg('Popup blocked. Allow popups for this site.', 'warn');
+    return;
+  }
+
+  setMsg(`Opened ${type} test window. Session: ${sessionId}`, '');
+}
 
   function closeTestModal(silent) {
     const modal = document.getElementById('testModal');
