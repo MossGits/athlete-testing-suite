@@ -346,6 +346,7 @@ async function openTestModal(type) {
   }
 
   // Create session on backend
+  const athleteId = selectedAthlete.id || selectedAthlete.accountId || selectedAthlete.email;
   const res = await fetch('/api/sessions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
