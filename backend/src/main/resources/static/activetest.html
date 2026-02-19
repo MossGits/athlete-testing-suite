@@ -1,1 +1,29 @@
-%%GUH
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Active Test Window</title>
+  <link href="/css/theme.css" rel="stylesheet"/>
+</head>
+<body>
+  <div class="container">
+    <h1>Active Test Window</h1>
+    <p id="status">Loading…</p>
+    <pre id="info" style="white-space:pre-wrap;"></pre>
+  </div>
+
+  <script>
+    const qs = new URLSearchParams(location.search);
+    const sessionId = qs.get("sessionId");
+    const mode = qs.get("mode");
+    const athleteId = qs.get("athleteId");
+
+    document.getElementById("info").textContent =
+      `sessionId=${sessionId}\nmode=${mode}\nathleteId=${athleteId}`;
+
+    document.getElementById("status").textContent =
+      sessionId ? "Session ID received ✅" : "Missing sessionId ❌";
+  </script>
+</body>
+</html>
