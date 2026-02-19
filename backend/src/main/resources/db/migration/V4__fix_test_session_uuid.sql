@@ -1,7 +1,6 @@
--- 1) Drop the dependent table first (it references test_session)
-drop table if exists test_event cascade;
+-- Ensure test_session.id is UUID and test_event.session_id matches it.
 
--- 2) Drop and recreate test_session with UUID id
+drop table if exists test_event cascade;
 drop table if exists test_session cascade;
 
 create table test_session (
