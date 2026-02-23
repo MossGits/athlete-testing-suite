@@ -346,7 +346,8 @@ async function openTestModal(type) {
   }
 
   // Create session on backend
-  const athleteId = selectedAthlete.id;
+  // Prefer the AthleteProfile PK if present, otherwise fall back to userId
+const athleteId = selectedAthlete.athleteProfileId ?? selectedAthlete.userId;
   if (!athleteId) {
   alert("Invalid athlete selection. No athlete ID found.");
   return;
@@ -373,7 +374,7 @@ async function openTestModal(type) {
   const url = (type === 'baseline' ? '/baselinetest.html' : '/activetest.html')
     + `?sessionId=${encodeURIComponent(sessionId)}`
     + `&mode=${encodeURIComponent(type)}`
-    + `&athleteId=${encodeURIComponent(selectedAthlete.id || '')}`;
+    + `&athleteId=${encodeURIComponent(athleteId ?? '')}`;
 
   const w = window.open(
     url,
@@ -659,7 +660,7 @@ async function openTestModal(type) {
 
     emptyEl.hidden = true;
 
-    const id = selectedAthlete.id || selectedAthlete.accountId || selectedAthlete.email;
+    const id = selectedAthlete.athleteProfileId ?? selectedAthlete.userId ?? selectedAthlete.email;
     let r = await fetchJson(`/api/trainer/athletes/${encodeURIComponent(id)}/tests`);
 
     if (!r.ok) {
