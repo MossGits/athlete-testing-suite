@@ -1,7 +1,6 @@
 package com.example.athletebackend.service;
 
 import com.example.athletebackend.domain.repo.AthleteProfileRepository;
-import com.example.athletebackend.domain.repo.TestSessionRepository;
 import com.example.athletebackend.security.Authz;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
@@ -10,7 +9,6 @@ import org.springframework.stereotype.Service;
 @Service
 @RequiredArgsConstructor
 public class TestAccessService {
-    private final TestSessionRepository tests;
     private final AthleteProfileRepository athletes;
 
     public void assertCanViewAthlete(Long athleteId) {
