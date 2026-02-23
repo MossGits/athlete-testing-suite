@@ -346,14 +346,18 @@ async function openTestModal(type) {
   }
 
   // Create session on backend
-  const athleteId = selectedAthlete.id || selectedAthlete.accountId || selectedAthlete.email;
+  const athleteId = selectedAthlete.id;
+  if (!athleteId) {
+  alert("Invalid athlete selection. No athlete ID found.");
+  return;
+    }
   const res = await fetch('/api/sessions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
-    body: JSON.stringify({
-      mode: type.toUpperCase(),     // "BASELINE" or "ACTIVE"
-      athleteId: selectedAthlete.id
+   body: JSON.stringify({
+    mode: type.toUpperCase(),
+    athleteId: athleteId
     })
   });
 
@@ -428,7 +432,7 @@ async function openTestModal(type) {
     // - baseline: save raw EEG under athlete record
     // - active: store as "active session" for pipeline compare (or save raw too)
     //
-    // For now, we just show a status message.
+    // For now, just show a status message.
     activeModal.running = false;
 
     if (activeModal.type === 'baseline') {
