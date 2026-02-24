@@ -5,12 +5,26 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Baseline Test Window</title>
   <link href="/css/theme.css" rel="stylesheet"/>
+  <style>
+    .row { display:flex; gap:10px; flex-wrap:wrap; margin: 12px 0; }
+    button { cursor:pointer; }
+    pre { background: rgba(0,0,0,0.05); padding: 12px; border-radius: 8px; }
+  </style>
 </head>
 <body>
   <div class="container">
     <h1>Baseline Test Window</h1>
+
     <p id="status">Loading…</p>
+
     <pre id="info" style="white-space:pre-wrap;"></pre>
+
+    <div class="row">
+      <button id="btnDummyUpload">Test Upload (Dummy CSVs)</button>
+      <button id="btnListFiles">List Stored Files</button>
+    </div>
+
+    <pre id="debug" style="white-space:pre-wrap;"></pre>
   </div>
 
   <script>
@@ -19,11 +33,85 @@
     const mode = qs.get("mode");
     const athleteId = qs.get("athleteId");
 
-    document.getElementById("info").textContent =
-      `sessionId=${sessionId}\nmode=${mode}\nathleteId=${athleteId}`;
+    const infoEl = document.getElementById("info");
+    const statusEl = document.getElementById("status");
+    const debugEl = document.getElementById("debug");
 
-    document.getElementById("status").textContent =
-      sessionId ? "Session ID received ✅" : "Missing sessionId ❌";
+    infoEl.textContent = `sessionId=${sessionId}\nmode=${mode}\nathleteId=${athleteId}`;
+    statusEl.textContent = sessionId ? "Session ID received ✅" : "Missing sessionId ❌";
+
+    function setDebug(msg) {
+      debugEl.textContent = msg;
+      console.log(msg);
+    }
+
+    async function listFiles() {
+      if (!sessionId) {
+        setDebug("Missing sessionId; cannot list files.");
+        return;
+      }
+      setDebug("Listing files...");
+      const res = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/files`, {
+        credentials: "include"
+      });
+      const text = await res.text();
+      setDebug(`GET /files -> HTTP ${res.status}\n\n${text}`);
+    }
+
+    async function uploadDummyCSVs() {
+      if (!sessionId) {
+        setDebug("Missing sessionId; cannot upload.");
+        return;
+      }
+
+      // Tiny CSVs (server gzips before storing)
+      const eeg = `ts,tp9,af7,af8,tp10
+0.0,1,2,3,4
+0.01,1.1,2.1,3.1,4.1
+`;
+      const ppg = `ts,ir,red,green
+0.0,10,20,30
+0.01,11,21,31
+`;
+      const acc = `ts,ax,ay,az
+0.0,0.1,0.2,0.3
+0.01,0.11,0.21,0.31
+`;
+      const gyro = `ts,gx,gy,gz
+0.0,1.0,2.0,3.0
+0.01,1.1,2.1,3.1
+`;
+      const markers = `ts,marker
+0.0,PARADIGM_START
+0.5,STIM_GO
+1.0,RESPONSE key=SPACE rt=0.412 correct=1
+1.5,PARADIGM_END
+`;
+
+      const fd = new FormData();
+      fd.append("EEG", new File([eeg], `session_${sessionId}_EEG.csv`, { type: "text/csv" }));
+      fd.append("PPG", new File([ppg], `session_${sessionId}_PPG.csv`, { type: "text/csv" }));
+      fd.append("ACC", new File([acc], `session_${sessionId}_ACC.csv`, { type: "text/csv" }));
+      fd.append("GYRO", new File([gyro], `session_${sessionId}_GYRO.csv`, { type: "text/csv" }));
+      fd.append("MARKERS", new File([markers], `session_${sessionId}_MARKERS.csv`, { type: "text/csv" }));
+
+      setDebug(`Uploading dummy CSVs to session ${sessionId}...`);
+
+      const res = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/files`, {
+        method: "POST",
+        body: fd,
+        credentials: "include"
+      });
+
+      const text = await res.text();
+      setDebug(`POST /files -> HTTP ${res.status}\n\n${text}`);
+
+      // Auto-list after upload
+      if (res.ok) await listFiles();
+    }
+
+    document.getElementById("btnDummyUpload").addEventListener("click", uploadDummyCSVs);
+    document.getElementById("btnListFiles").addEventListener("click", listFiles);
   </script>
 </body>
 </html>
