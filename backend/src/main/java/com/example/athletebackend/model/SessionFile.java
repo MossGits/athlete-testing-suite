@@ -1,6 +1,8 @@
 package com.example.athletebackend.model;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.OffsetDateTime;
 import java.util.UUID;
@@ -18,7 +20,7 @@ public class SessionFile {
     private UUID sessionId;
 
     @Column(nullable = false)
-    private String kind; // EEG / PPG / ACC / GYRO / MARKERS
+    private String kind;
 
     @Column(nullable = false)
     private String filename;
@@ -27,7 +29,7 @@ public class SessionFile {
     private String contentType;
 
     @Column(name="content_encoding", nullable = false)
-    private String contentEncoding; // gzip
+    private String contentEncoding;
 
     @Column(name="size_bytes", nullable = false)
     private Long sizeBytes;
@@ -37,9 +39,9 @@ public class SessionFile {
     @Column(name="created_at", nullable = false)
     private OffsetDateTime createdAt;
 
-    @Lob
     @Basic(fetch = FetchType.LAZY)
-    @Column(nullable = false)
+    @JdbcTypeCode(SqlTypes.BINARY)
+    @Column(nullable = false, columnDefinition = "bytea")
     private byte[] data;
 
     @PrePersist
