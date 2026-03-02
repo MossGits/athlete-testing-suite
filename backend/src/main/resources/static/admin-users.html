@@ -92,7 +92,7 @@
         <h3 style="margin-top:0;">Selected Athlete</h3>
         <div id="selectedAthleteCard" class="note">Select an athlete to begin.</div>
 
-        <!-- OPTIONAL CLEANUP APPLIED: no Muse connect controls on this page -->
+        <!-- OPTIONAL CLEANUP APPLIED: removed "Connect Device" section -->
         <div style="margin-top: 1rem;">
           <h3>Run Diagnostic Session</h3>
           <div class="note" style="margin-bottom:.5rem;">
@@ -119,7 +119,7 @@
   </div>
 </div>
 
-<!-- Modal (kept for compatibility; no longer used to run tests) -->
+<!-- Modal (hidden by default) -->
 <div id="testModal" class="modalOverlay hidden" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
   <div class="modalCard">
     <div class="modalHeader">
@@ -133,12 +133,14 @@
 
     <div class="modalBody">
       <div class="note" id="modalNote">
-        This modal is no longer used. Tests open in a separate window.
+        Use Start to begin capturing data from the connected Muse.
       </div>
 
       <div style="margin-top:.75rem;">
         <pre id="modalDebug" class="note" style="white-space: pre-wrap;">Status: Idle</pre>
       </div>
+
+      <!-- Can later show live signal quality, countdown timers, etc. here -->
     </div>
 
     <div class="modalFooter">
@@ -154,7 +156,7 @@
   let me = null;
   let selectedAthlete = null;
 
-  // Modal / session state (kept; tests now run in popup window)
+  // Modal / session state
   let activeModal = {
     open: false,
     type: null,         // 'baseline' | 'active'
@@ -200,8 +202,7 @@
     const btnActive = document.getElementById('btnRunActive');
     const hint = document.getElementById('testTypeHint');
 
-    // Baseline/Active: require athlete selected + no existing modal/popup requirement
-    // (Muse connection will happen inside the test popup window.)
+    // Baseline/Active: require athlete selected + modal not already open
     const canOpenModal = !!selectedAthlete && !activeModal.open;
     if (btnBaseline) btnBaseline.disabled = !canOpenModal;
     if (btnActive) btnActive.disabled = !canOpenModal;
@@ -212,7 +213,7 @@
       else hint.textContent = 'Ready — Muse will connect in the test window.';
     }
 
-    // Modal buttons are intentionally disabled; test runs in popup
+    // Modal buttons (kept, but disabled since popup handles tests now)
     const mStart = document.getElementById('modalBtnStart');
     const mSave = document.getElementById('modalBtnSave');
     const mDiscard = document.getElementById('modalBtnDiscard');
@@ -221,7 +222,9 @@
     if (mDiscard) mDiscard.disabled = true;
   }
 
-  // Modal logic (kept for compatibility; not used)
+  // Modal logic
+
+  // Test window logic (creates a session, then opens baselinetest.html / activetest.html popup)
   async function openTestModal(type) {
     if (!selectedAthlete) {
       setMsg('Select an athlete first.', 'warn');
@@ -257,7 +260,6 @@
     const data = await res.json();
     const sessionId = data.sessionId;
 
-    // Open the actual test runner page (Muse connects inside this popup)
     const url = (type === 'baseline' ? '/baselinetest.html' : '/activetest.html')
       + `?sessionId=${encodeURIComponent(sessionId)}`
       + `&mode=${encodeURIComponent(sessionMode)}`
@@ -266,7 +268,7 @@
     const w = window.open(
       url,
       type === 'baseline' ? 'baselineTest' : 'activeTest',
-      'popup=yes,width=980,height=760'
+      'popup=yes,width=900,height=700'
     );
 
     if (!w) {
@@ -296,9 +298,18 @@
     if (dbg) dbg.textContent = debugText || `Status: ${pillText}`;
   }
 
-  async function modalStart() { setModalStatus('Idle', 'Status: Idle'); }
-  async function modalSave() { setModalStatus('Idle', 'Status: Idle'); }
-  async function modalDiscard() { setModalStatus('Idle', 'Status: Idle'); }
+  // Placeholder modal functions (no longer used for running tests; popup handles it)
+  async function modalStart() {
+    setModalStatus('Disabled', 'Status: Disabled\nUse the Baseline/Active test window to run the test.');
+  }
+
+  async function modalSave() {
+    setModalStatus('Disabled', 'Status: Disabled\nUse the Baseline/Active test window to run the test.');
+  }
+
+  async function modalDiscard() {
+    setModalStatus('Disabled', 'Status: Disabled\nUse the Baseline/Active test window to run the test.');
+  }
 
   // Close modal if user clicks overlay background
   document.addEventListener('click', (e) => {
