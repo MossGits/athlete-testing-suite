@@ -243,16 +243,16 @@
     // Disconnect button: enabled only if connected
     if (btnDisconnect) btnDisconnect.disabled = !museConnected;
 
-    // Baseline/Active: require athlete selected + muse connected + modal not already open
-    const canOpenModal = !!selectedAthlete && museConnected && !activeModal.open;
+    // Baseline/Active: require athlete selected + modal not already open
+    // (Muse connection will happen inside the test popup window.)
+    const canOpenModal = !!selectedAthlete && !activeModal.open;
     if (btnBaseline) btnBaseline.disabled = !canOpenModal;
     if (btnActive) btnActive.disabled = !canOpenModal;
 
     if (hint) {
       if (!selectedAthlete) hint.textContent = 'Select an athlete to enable.';
-      else if (!museConnected) hint.textContent = 'Connect Muse to enable.';
       else if (activeModal.open) hint.textContent = 'Test window open.';
-      else hint.textContent = 'Ready.';
+      else hint.textContent = 'Ready — Muse will connect in the test window.';
     }
 
     // Modal buttons
@@ -340,10 +340,6 @@ async function openTestModal(type) {
     setMsg('Select an athlete first.', 'warn');
     return;
   }
-  if (!museConnected) {
-    setMsg('Connect Muse first.', 'warn');
-    return;
-  }
 
   // Create session on backend
   // Prefer the AthleteProfile PK if present, otherwise fall back to userId
@@ -352,12 +348,15 @@ const athleteId = selectedAthlete.athleteProfileId ?? selectedAthlete.userId;
   alert("Invalid athlete selection. No athlete ID found.");
   return;
     }
+
+  const sessionMode = (type === 'baseline') ? 'BASELINE' : 'ACTIVE';
+
   const res = await fetch('/api/sessions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
    body: JSON.stringify({
-    mode: type.toUpperCase(),
+    mode: sessionMode,
     athleteId: athleteId
     })
   });
@@ -373,7 +372,7 @@ const athleteId = selectedAthlete.athleteProfileId ?? selectedAthlete.userId;
 
   const url = (type === 'baseline' ? '/baselinetest.html' : '/activetest.html')
     + `?sessionId=${encodeURIComponent(sessionId)}`
-    + `&mode=${encodeURIComponent(type)}`
+    + `&mode=${encodeURIComponent(sessionMode)}`
     + `&athleteId=${encodeURIComponent(athleteId ?? '')}`;
 
   const w = window.open(
@@ -387,7 +386,7 @@ const athleteId = selectedAthlete.athleteProfileId ?? selectedAthlete.userId;
     return;
   }
 
-  setMsg(`Opened ${type} test window. Session: ${sessionId}`, '');
+  setMsg(`Opened ${sessionMode} test window. Session: ${sessionId}`, '');
 }
 
   function closeTestModal(silent) {
