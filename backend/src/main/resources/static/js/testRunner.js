@@ -56,7 +56,11 @@
 
   // Rolling last ~1 second for quality
   const EEG_SFREQ = 256;
-  const eegRoll = [[], [], [], [], []];
+
+  // Muse 2 EEG channels: TP9, AF7, AF8, TP10 (NO AUX)
+  const EEG_CH = 4;
+  const eegRoll = Array.from({ length: EEG_CH }, () => []);
+
   const ppgRoll = [[], [], []];
   const accRoll = [[], [], []];
   const gyroRoll = [[], [], []];
@@ -82,7 +86,7 @@
   function ensurePhase(phase) {
     if (!phaseData.has(phase)) {
       phaseData.set(phase, {
-        EEG: ["t_epoch_ms,tp9,fp1,fp2,tp10,aux"],
+        EEG: ["t_epoch_ms,tp9,af7,af8,tp10"],
         PPG: ["t_epoch_ms,ambient,ir,red"],
         ACC: ["t_epoch_ms,ax,ay,az"],
         GYRO: ["t_epoch_ms,gx,gy,gz"],
@@ -115,18 +119,19 @@
   function consumeMuseBuffers() {
     const now = Date.now();
 
-    // ---- EEG (5 channels) ----
+    // ---- EEG (4 channels: TP9, AF7, AF8, TP10) ----
     while (true) {
+      if (!muse?.eeg || muse.eeg.length < 4) break;
+
       const v = [
         muse.eeg[0].read(),
         muse.eeg[1].read(),
         muse.eeg[2].read(),
         muse.eeg[3].read(),
-        muse.eeg[4].read(),
       ];
       if (v.some(x => x === null)) break;
 
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < 4; i++) {
         eegRoll[i].push(v[i]);
         trimTo(eegRoll[i], EEG_SFREQ);
       }
@@ -135,12 +140,13 @@
         if (lastEegTs === null) lastEegTs = Date.now();
         lastEegTs += EEG_DT_MS;
         const t = Math.round(lastEegTs);
-        ensurePhase(currentPhase).EEG.push(`${t},${v[0]},${v[1]},${v[2]},${v[3]},${v[4]}`);
+        ensurePhase(currentPhase).EEG.push(`${t},${v[0]},${v[1]},${v[2]},${v[3]}`);
       }
     }
 
     // ---- PPG (3 channels) ----
     while (true) {
+      if (!muse?.ppg || muse.ppg.length < 3) break;
       const v = [muse.ppg[0].read(), muse.ppg[1].read(), muse.ppg[2].read()];
       if (v.some(x => x === null)) break;
       for (let i = 0; i < 3; i++) {
@@ -155,6 +161,7 @@
 
     // ---- ACC (3 axes) ----
     while (true) {
+      if (!muse?.accelerometer || muse.accelerometer.length < 3) break;
       const v = [muse.accelerometer[0].read(), muse.accelerometer[1].read(), muse.accelerometer[2].read()];
       if (v.some(x => x === null)) break;
       for (let i = 0; i < 3; i++) {
@@ -169,6 +176,7 @@
 
     // ---- GYRO (3 axes) ----
     while (true) {
+      if (!muse?.gyroscope || muse.gyroscope.length < 3) break;
       const v = [muse.gyroscope[0].read(), muse.gyroscope[1].read(), muse.gyroscope[2].read()];
       if (v.some(x => x === null)) break;
       for (let i = 0; i < 3; i++) {
@@ -181,14 +189,16 @@
       }
     }
 
-    const eegOk = (now - muse.eeg[0].lastwrite) < 1500;
-    const ppgOk = (now - muse.ppg[0].lastwrite) < 1500;
-    const accOk = (now - muse.accelerometer[0].lastwrite) < 1500;
-    const gyroOk = (now - muse.gyroscope[0].lastwrite) < 1500;
+    // Stream presence checks (guard for missing buffers)
+    const eegOk = !!muse?.eeg?.[0] && (now - muse.eeg[0].lastwrite) < 1500;
+    const ppgOk = !!muse?.ppg?.[0] && (now - muse.ppg[0].lastwrite) < 1500;
+    const accOk = !!muse?.accelerometer?.[0] && (now - muse.accelerometer[0].lastwrite) < 1500;
+    const gyroOk = !!muse?.gyroscope?.[0] && (now - muse.gyroscope[0].lastwrite) < 1500;
 
     const status = `EEG:${eegOk ? 'OK' : '—'}  PPG:${ppgOk ? 'OK' : '—'}  ACC:${accOk ? 'OK' : '—'}  GYRO:${gyroOk ? 'OK' : '—'}`;
     setPill("pStreams", eegOk ? "ok" : "warn", status);
 
+    // Quality runs live; button is optional
     $("btnQuality").disabled = !isConnected || !eegOk;
   }
 
@@ -202,15 +212,17 @@
   }
 
   function computeQualityIndex(sd) {
+    // Same mapping you had, but note: for EEG in microvolts,
+    // you may want to tune these constants later.
     const idx = Math.tanh((sd - 30) / 15) * 5 + 5;
     return Math.max(0, Math.min(10, Math.round(idx)));
   }
 
   function renderQuality(indices) {
-    const labels = ["TP9", "FP1", "FP2", "TP10", "AUX"];
+    const labels = ["TP9", "AF7", "AF8", "TP10"];
     const grid = $("qGrid");
     grid.innerHTML = "";
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 4; i++) {
       const div = document.createElement("div");
       div.className = "qcell";
       const idx = indices[i];
@@ -225,30 +237,43 @@
     }
   }
 
-  function runQualityCheck() {
+  function startLiveQuality() {
     $("qualityPanel").style.display = "block";
-    setPill("pQuality", "warn", "running");
+    if (qualityTimer) return; // already running
 
+    setPill("pQuality", "warn", "running");
     qualityStableSince = null;
     qualityPassed = false;
 
-    if (qualityTimer) clearInterval(qualityTimer);
     qualityTimer = setInterval(() => {
+      // Wait until we have enough samples (~0.5s) in all channels
+      const haveData = eegRoll.every(ch => ch.length >= Math.floor(EEG_SFREQ / 2));
+      if (!haveData) {
+        renderQuality([10, 10, 10, 10]);
+        setPill("pQuality", "warn", "waiting for EEG…");
+        $("btnStart").disabled = true;
+        return;
+      }
+
       const sds = eegRoll.map(ch => stddev(ch));
       const indices = sds.map(sd => isFinite(sd) ? computeQualityIndex(sd) : 10);
       renderQuality(indices);
 
-      const pass = indices.slice(0, 4).every(x => x <= 3);
+      // Pass condition: all channels <= 4 for 2 seconds (slightly forgiving)
+      const pass = indices.every(x => x <= 4);
       const now = Date.now();
+
       if (pass) {
         if (!qualityStableSince) qualityStableSince = now;
         const stableMs = now - qualityStableSince;
+
         if (stableMs >= 2000) {
           qualityPassed = true;
           setPill("pQuality", "ok", "PASSED");
           $("btnStart").disabled = false;
         } else {
-          setPill("pQuality", "warn", `stabilizing (${Math.ceil((2000-stableMs)/1000)}s)`);
+          setPill("pQuality", "warn", `stabilizing (${Math.ceil((2000 - stableMs) / 1000)}s)`);
+          $("btnStart").disabled = true;
         }
       } else {
         qualityStableSince = null;
@@ -257,6 +282,11 @@
         setPill("pQuality", "warn", "adjust electrodes");
       }
     }, 250);
+  }
+
+  function runQualityCheck() {
+    // Kept for the button, but quality is meant to be live now.
+    startLiveQuality();
   }
 
   // ---------- UI stage helpers ----------
@@ -370,7 +400,7 @@
 
       const onKey = (e) => {
         if (responded) return;
-        if (e.code === "Space" || e.key === " " ) {
+        if (e.code === "Space" || e.key === " ") {
           responded = true;
           rtMs = Math.round(performance.now() - t0);
         }
@@ -410,7 +440,7 @@
     const avgIsiMs = 1200;
     const jitterMaxMs = 500;
 
-    const stimuli = ["A","B","C","D","E"];
+    const stimuli = ["A", "B", "C", "D", "E"];
     let prev = null;
 
     const endAt = Date.now() + durationMs;
@@ -518,7 +548,7 @@
       await countdown(30000, `Postural: ${c}`);
 
       if (i < conditions.length - 1) {
-        showText([`Trial ${i+1} complete.`, `Prepare for Trial ${i+2}.`, "Press SPACE when ready."]);
+        showText([`Trial ${i + 1} complete.`, `Prepare for Trial ${i + 2}.`, "Press SPACE when ready."]);
         await waitForSpaceOrAbort();
       }
     }
@@ -612,6 +642,10 @@
       if (pollTimer) clearInterval(pollTimer);
       pollTimer = setInterval(consumeMuseBuffers, 50);
 
+      // Quality check runs live automatically now
+      startLiveQuality();
+
+      // Button no longer required, but leaving enabled is fine
       $("btnQuality").disabled = false;
 
     } catch (err) {
