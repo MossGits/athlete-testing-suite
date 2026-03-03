@@ -2,8 +2,8 @@
   testRunner.js
   - Connects to Muse via /js/muse/Muse.js (Web Bluetooth)
   - Runs electrode quality check (JS port of quality_check.py)
-  - Runs the experiment paradigm (JS port of experiment.py timing)
-  - Records EEG/PPG/ACC/GYRO + markers + responses
+  - Opens experimental paradigm in a separate fullscreen-capable popup (dark)
+  - Records EEG/PPG/ACC/GYRO + markers + responses in the controller window
   - Uploads per-phase CSVs to Spring Boot via /api/sessions/{id}/files (multipart)
 */
 
@@ -82,6 +82,9 @@
   // phaseName -> { EEG: [lines], PPG: [lines], ACC: [lines], GYRO: [lines], MARKERS: [lines], RESPONSES: [lines] }
   const phaseData = new Map();
   let currentPhase = null;
+
+  // Paradigm popup reference
+  let paradigmWin = null;
 
   function ensurePhase(phase) {
     if (!phaseData.has(phase)) {
@@ -212,8 +215,6 @@
   }
 
   function computeQualityIndex(sd) {
-    // Same mapping you had, but note: for EEG in microvolts,
-    // you may want to tune these constants later.
     const idx = Math.tanh((sd - 30) / 15) * 5 + 5;
     return Math.max(0, Math.min(10, Math.round(idx)));
   }
@@ -259,7 +260,7 @@
       const indices = sds.map(sd => isFinite(sd) ? computeQualityIndex(sd) : 10);
       renderQuality(indices);
 
-      // Pass condition: all channels <= 4 for 2 seconds (slightly forgiving)
+      // Pass condition: all channels <= 4 for 2 seconds
       const pass = indices.every(x => x <= 4);
       const now = Date.now();
 
@@ -285,7 +286,7 @@
   }
 
   function runQualityCheck() {
-    // Kept for the button, but quality is meant to be live now.
+    // Button-friendly wrapper; quality is live
     startLiveQuality();
   }
 
@@ -298,20 +299,6 @@
     stage.innerHTML = `<div id="stageText" style="font-size:28px;text-align:center;max-width:900px;line-height:1.35"></div>`;
     const el = $("stageText");
     el.innerHTML = Array.isArray(lines) ? lines.map(l => `<div>${l}</div>`).join("") : lines;
-  }
-
-  function showSquare(color) {
-    stage.innerHTML = "";
-    const sq = document.createElement("div");
-    sq.style.width = "220px";
-    sq.style.height = "220px";
-    sq.style.borderRadius = "18px";
-    sq.style.background = color;
-    stage.appendChild(sq);
-  }
-
-  function showBigLetter(letter) {
-    stage.innerHTML = `<div style="font-size:160px;font-weight:800;letter-spacing:2px">${letter}</div>`;
   }
 
   // ---------- upload helpers ----------
@@ -364,201 +351,83 @@
     log("Upload complete.");
   }
 
-  // ---------- paradigm ----------
-  async function runGoNoGo() {
-    currentPhase = "GoNoGo";
-    ensurePhase(currentPhase);
+  async function finishRunFromPopup() {
+    showText(["Experiment complete.", "Saving data…"]);
+    setPill("pRun", "warn", "uploading");
 
-    showText([
-      "Go/No-Go Task Instructions:",
-      "Press SPACE as quickly as possible when you see a GREEN square (Go).",
-      "Do NOT respond when you see a RED square (No-Go).",
-      "", "Get ready…"
-    ]);
-    await sleep(2000);
+    isRunning = false;
+    currentPhase = null;
 
-    marker("PHASE_START_GONOGO");
+    await uploadPhaseCSVs();
 
-    const durationMs = 120000;
-    const stimMs = 500;
-    const avgIsiMs = 1200;
-    const jitterMaxMs = 500;
-
-    const endAt = Date.now() + durationMs;
-
-    while (Date.now() < endAt) {
-      if (abortRequested) throw new Error("Aborted");
-
-      const isGo = Math.random() < 0.7;
-      const stimType = isGo ? "Go" : "No-Go";
-      showSquare(isGo ? "rgb(0,150,0)" : "rgb(150,0,0)");
-      marker(`GoNoGo_${stimType}`);
-
-      const t0 = performance.now();
-      let responded = false;
-      let rtMs = null;
-
-      const onKey = (e) => {
-        if (responded) return;
-        if (e.code === "Space" || e.key === " ") {
-          responded = true;
-          rtMs = Math.round(performance.now() - t0);
-        }
-      };
-
-      window.addEventListener("keydown", onKey);
-      await sleep(stimMs);
-      window.removeEventListener("keydown", onKey);
-
-      const correct = (isGo && responded) || (!isGo && !responded);
-      recordResponse("Go/No-Go", stimType, correct, rtMs);
-
-      showText("");
-      const jitter = Math.random() * jitterMaxMs;
-      await sleep(avgIsiMs + jitter);
+    if (sessionId) {
+      try {
+        await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/complete`, { method: "POST", credentials: "include" });
+      } catch {}
     }
 
-    marker("PHASE_END_GONOGO");
+    setPill("pRun", "ok", "complete");
+    showText(["All done ✅", "CSVs have been stored for this session."]);
+    $("btnAbort").disabled = true;
+    $("btnConnect").disabled = false;
+
+    await listFiles();
   }
 
-  async function runOneBack() {
-    currentPhase = "OneBack";
-    ensurePhase(currentPhase);
+  function stopRunFromPopup(reason) {
+    isRunning = false;
+    currentPhase = null;
+    setPill("pRun", "bad", "stopped");
+    showText(["Test stopped.", reason || "Stopped"]);
+    $("btnAbort").disabled = true;
+    $("btnConnect").disabled = false;
+  }
 
-    showText([
-      "1-Back Task Instructions:",
-      "A letter will appear.",
-      "Press SPACE ONLY if it matches the letter immediately before.",
-      "", "Get ready…"
-    ]);
-    await sleep(2000);
+  // ---------- paradigm popup integration ----------
+  window.addEventListener("message", (ev) => {
+    const msg = ev.data;
+    if (!msg || msg.source !== "PARADIGM") return;
 
-    marker("PHASE_START_ONEBACK");
-
-    const durationMs = 120000;
-    const stimMs = 500;
-    const avgIsiMs = 1200;
-    const jitterMaxMs = 500;
-
-    const stimuli = ["A", "B", "C", "D", "E"];
-    let prev = null;
-
-    const endAt = Date.now() + durationMs;
-
-    while (Date.now() < endAt) {
-      if (abortRequested) throw new Error("Aborted");
-
-      let letter;
-      let isTarget = false;
-      if (prev && Math.random() < 0.3) {
-        letter = prev;
-        isTarget = true;
-      } else {
-        const choices = prev ? stimuli.filter(x => x !== prev) : stimuli;
-        letter = choices[Math.floor(Math.random() * choices.length)];
-      }
-
-      showBigLetter(letter);
-      marker(`1Back_${isTarget ? "Target" : "NonTarget"}`);
-
-      const t0 = performance.now();
-      let responded = false;
-      let rtMs = null;
-
-      const onKey = (e) => {
-        if (responded) return;
-        if (e.code === "Space" || e.key === " ") {
-          responded = true;
-          rtMs = Math.round(performance.now() - t0);
-        }
-      };
-
-      window.addEventListener("keydown", onKey);
-      await sleep(stimMs);
-      window.removeEventListener("keydown", onKey);
-
-      const correct = (isTarget && responded) || (!isTarget && !responded);
-      recordResponse("1-Back", isTarget ? "Target" : "Non-Target", correct, rtMs);
-
-      showText("");
-      const jitter = Math.random() * jitterMaxMs;
-      await sleep(avgIsiMs + jitter);
-
-      prev = letter;
+    if (msg.type === "phaseStart") {
+      currentPhase = msg.payload.phase;
+      ensurePhase(currentPhase);
+      log(`Paradigm phaseStart: ${currentPhase}`);
+      return;
     }
 
-    marker("PHASE_END_ONEBACK");
-  }
-
-  async function waitForSpaceOrAbort() {
-    return new Promise((resolve, reject) => {
-      const onKey = (e) => {
-        if (abortRequested) {
-          cleanup();
-          reject(new Error("Aborted"));
-          return;
-        }
-        if (e.code === "Space" || e.key === " ") {
-          cleanup();
-          resolve();
-        }
-      };
-      function cleanup() { window.removeEventListener("keydown", onKey); }
-      window.addEventListener("keydown", onKey);
-    });
-  }
-
-  async function countdown(ms, label) {
-    const end = Date.now() + ms;
-    while (Date.now() < end) {
-      if (abortRequested) throw new Error("Aborted");
-      const left = end - Date.now();
-      timerEl.textContent = `${label} — time left ${msToClock(left)}`;
-      await sleep(200);
-    }
-    timerEl.textContent = "—";
-  }
-
-  async function runPostural() {
-    currentPhase = "Postural";
-    ensurePhase(currentPhase);
-
-    const conditions = [
-      "Eyes Closed (Both Feet)",
-      "Eyes Closed (Left Leg)",
-      "Eyes Closed (Right Leg)"
-    ];
-
-    showText([
-      "Postural Balance Instructions:",
-      "You will do three 30-second trials, eyes closed.",
-      "1) Both feet", "2) Left leg", "3) Right leg",
-      "", "Press SPACE to begin Trial 1"
-    ]);
-
-    await waitForSpaceOrAbort();
-    marker("PHASE_START_POSTURAL");
-
-    for (let i = 0; i < conditions.length; i++) {
-      if (abortRequested) throw new Error("Aborted");
-      const c = conditions[i];
-      showText([c, "(Hold as still as possible)"]);
-      marker(`Postural_${c.replaceAll(' ', '_')}`);
-
-      await countdown(30000, `Postural: ${c}`);
-
-      if (i < conditions.length - 1) {
-        showText([`Trial ${i + 1} complete.`, `Prepare for Trial ${i + 2}.`, "Press SPACE when ready."]);
-        await waitForSpaceOrAbort();
-      }
+    if (msg.type === "phaseEnd") {
+      log(`Paradigm phaseEnd: ${msg.payload.phase}`);
+      return;
     }
 
-    marker("PHASE_END_POSTURAL");
-  }
+    if (msg.type === "marker") {
+      marker(msg.payload.marker);
+      return;
+    }
+
+    if (msg.type === "response") {
+      const r = msg.payload;
+      recordResponse(r.task, r.stimulus, !!r.correct, r.rtMs);
+      return;
+    }
+
+    if (msg.type === "done") {
+      finishRunFromPopup().catch(e => log(`finishRunFromPopup error: ${e}`));
+      return;
+    }
+
+    if (msg.type === "aborted") {
+      abortRequested = true;
+      log(`Paradigm aborted: ${msg.payload?.reason || "unknown"}`);
+      stopRunFromPopup(`Paradigm aborted: ${msg.payload?.reason || "unknown"}`);
+      return;
+    }
+  });
 
   async function runParadigm() {
     abortRequested = false;
     isRunning = true;
+
     $("btnAbort").disabled = false;
     $("btnStart").disabled = true;
     $("btnConnect").disabled = true;
@@ -572,61 +441,63 @@
       } catch {}
     }
 
+    // Setup phase for any pre-start markers
     currentPhase = "Setup";
     ensurePhase(currentPhase);
+    marker("WELCOME");
+
+    // Open paradigm popup (dark + requests fullscreen on click)
+    const w = window.open(
+      "/paradigm.html",
+      "paradigmWindow",
+      "popup=yes,width=1200,height=800"
+    );
+
+    if (!w) {
+      stopRunFromPopup("Popup blocked. Allow popups for this site.");
+      return;
+    }
+
+    paradigmWin = w;
+
+    // Try to maximize popup (fullscreen itself is requested inside the popup)
+    try {
+      w.moveTo(0, 0);
+      w.resizeTo(screen.availWidth, screen.availHeight);
+    } catch {}
+
+    // Send config to popup
+    w.postMessage({
+      source: "CONTROLLER",
+      type: "config",
+      payload: {
+        goNoGoDurationMs: 120000,
+        oneBackDurationMs: 120000,
+        posturalTrialMs: 30000,
+        stimMs: 500,
+        avgIsiMs: 1200,
+        jitterMaxMs: 500
+      }
+    }, "*");
 
     showText([
-      "Welcome to the Concussion Diagnostic Test.",
-      "", "Get comfortable and keep the headset secure.",
-      "", "The test will begin shortly…"
+      "Paradigm opened in a separate window.",
+      "",
+      "If fullscreen didn’t start, click inside the paradigm window and press Start Fullscreen."
     ]);
-    marker("WELCOME");
-    await countdown(15000, "Welcome");
-
-    showText(["Press SPACE to begin the test."]);
-    await waitForSpaceOrAbort();
-
-    try {
-      await runGoNoGo();
-      await runOneBack();
-      await runPostural();
-
-      showText(["Experiment complete.", "Saving data…"]);
-      setPill("pRun", "warn", "uploading");
-
-      isRunning = false;
-      currentPhase = null;
-
-      await uploadPhaseCSVs();
-
-      if (sessionId) {
-        try {
-          await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/complete`, { method: "POST", credentials: "include" });
-        } catch {}
-      }
-
-      setPill("pRun", "ok", "complete");
-      showText(["All done ✅", "CSVs have been stored for this session."]);
-      $("btnAbort").disabled = true;
-      $("btnConnect").disabled = false;
-
-      await listFiles();
-
-    } catch (err) {
-      isRunning = false;
-      currentPhase = null;
-      setPill("pRun", "bad", "stopped");
-      showText(["Test stopped.", String(err?.message || err)]);
-      log(`Run error: ${err}`);
-      $("btnAbort").disabled = true;
-      $("btnConnect").disabled = false;
-    }
   }
 
   function abort() {
     abortRequested = true;
     setPill("pRun", "bad", "aborting");
     log("Abort requested.");
+
+    // Close the paradigm popup if it exists
+    if (paradigmWin && !paradigmWin.closed) {
+      try { paradigmWin.close(); } catch {}
+    }
+
+    stopRunFromPopup("Aborted by user.");
   }
 
   // ---------- connect + polling ----------
