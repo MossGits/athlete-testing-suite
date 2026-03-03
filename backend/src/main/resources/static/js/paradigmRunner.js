@@ -5,8 +5,18 @@
   const stageText = document.getElementById("stageText");
   const timerEl = document.getElementById("timer");
 
-  let cfg = null;
+  // Defaults so cfg is NEVER null
+  let cfg = {
+    goNoGoDurationMs: 120000,
+    oneBackDurationMs: 120000,
+    posturalTrialMs: 30000,
+    stimMs: 500,
+    avgIsiMs: 1200,
+    jitterMaxMs: 500
+  };
+
   let abort = false;
+  let hasConfigFromController = false;
 
   function post(type, payload = {}) {
     // Send to the controller window
@@ -45,19 +55,14 @@
     sq.style.borderRadius = "22px";
     sq.style.background = color;
     sq.style.boxShadow = "0 20px 80px rgba(0,0,0,0.65)";
-    document.getElementById("root").innerHTML = "";
-    document.getElementById("root").appendChild(sq);
+    const root = document.getElementById("root");
+    root.innerHTML = "";
+    root.appendChild(sq);
   }
 
   function showLetter(letter) {
     document.getElementById("root").innerHTML =
       `<div style="font-size:200px;font-weight:900;letter-spacing:2px">${letter}</div>`;
-  }
-
-  function clearStage() {
-    document.getElementById("root").innerHTML = `<div id="stageText"></div>`;
-    const st = document.getElementById("stageText");
-    st.id = "stageText";
   }
 
   function setTimer(label, leftMs) {
@@ -132,7 +137,7 @@
       const correct = (isGo && responded) || (!isGo && !responded);
       post("response", { task: "Go/No-Go", stimulus: stimType, correct, rtMs });
 
-      // ISI
+      // ISI fixation
       document.getElementById("root").innerHTML = `<div style="font-size:34px;opacity:0.25">+</div>`;
       const jitter = Math.random() * jitterMaxMs;
       await sleep(avgIsiMs + jitter);
@@ -255,7 +260,6 @@
   async function runAll() {
     try {
       post("started", {});
-      // welcome buffer (optional)
       setText(["Welcome", "", "Press SPACE to begin the test."]);
       await waitForSpace();
 
@@ -280,30 +284,47 @@
     try {
       await ensureFullscreen();
       overlay.style.display = "none";
-      post("ready", {});
+      post("ready", { hasConfigFromController });
       runAll();
     } catch (e) {
       // Fullscreen failed; still allow running
       overlay.style.display = "none";
-      post("ready", { fullscreen: false, error: String(e?.message || e) });
+      post("ready", { fullscreen: false, error: String(e?.message || e), hasConfigFromController });
       runAll();
     }
   });
 
-  // Receive config from controller
+  // Receive config from controller + abort requests
   window.addEventListener("message", (ev) => {
     const msg = ev.data;
     if (!msg || msg.source !== "CONTROLLER") return;
+
     if (msg.type === "config") {
-      cfg = msg.payload || {};
+      // Merge into defaults so missing fields don't break things
+      cfg = { ...cfg, ...(msg.payload || {}) };
+      hasConfigFromController = true;
+      post("configAck", {});
       setText(["Ready.", "", "Click Start Fullscreen to begin."]);
+      // Optionally enable Start only after config received
+      btnStartFs.disabled = false;
+      return;
+    }
+
+    if (msg.type === "abort") {
+      abort = true;
+      post("aborted", { reason: "Abort requested by controller" });
+      return;
     }
   });
 
   // If opened manually without controller:
   if (!window.opener) {
     setText(["No controller window found.", "", "Open this from the Baseline/Active test page."]);
+    btnStartFs.disabled = true;
   } else {
+    // Start disabled until config arrives (but defaults exist, so even if you enabled it, it wouldn't crash)
+    btnStartFs.disabled = true;
+    setText(["Connecting to controller…", "", "Waiting for configuration."]);
     post("hello", {});
   }
 })();
