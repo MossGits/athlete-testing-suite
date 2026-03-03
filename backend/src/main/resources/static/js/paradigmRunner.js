@@ -2,7 +2,6 @@
   const overlay = document.getElementById("overlay");
   const btnStartFs = document.getElementById("btnStartFs");
   const btnAbort = document.getElementById("btnAbort");
-  const stageText = document.getElementById("stageText");
   const timerEl = document.getElementById("timer");
 
   // Defaults so cfg is NEVER null
@@ -47,7 +46,20 @@
     }
   }
 
+  // ---------- FIX: always write to a live #stageText ----------
+  function getStageTextEl() {
+    let el = document.getElementById("stageText");
+    if (!el) {
+      const root = document.getElementById("root");
+      // Recreate a text container if root was cleared by showSquare/showBlank
+      root.innerHTML = `<div id="stageText"></div>`;
+      el = document.getElementById("stageText");
+    }
+    return el;
+  }
+
   function setText(lines) {
+    const stageText = getStageTextEl();
     stageText.innerHTML = Array.isArray(lines)
       ? lines.map(l => `<div>${l}</div>`).join("")
       : String(lines);
@@ -103,15 +115,15 @@
       `<div style="font-size:200px;font-weight:900;letter-spacing:2px">${letter}</div>`;
   }
 
+  // ---------- FIX: keep a stageText node alive instead of pure empty ----------
   function showBlank() {
     const root = document.getElementById("root");
-    root.innerHTML = "";
+    root.innerHTML = `<div id="stageText"></div>`;
   }
 
   // ------------------ VERBATIM screens from experiment.py ------------------
 
   async function showWelcome() {
-    // show_welcome() text, verbatim :contentReference[oaicite:8]{index=8}
     const welcome_text = [
       "Welcome to the Concussion Diagnostic Test.",
       "",
@@ -128,7 +140,6 @@
   }
 
   async function showInstructions() {
-    // show_instructions() text, verbatim :contentReference[oaicite:9]{index=9}
     const instructions = [
       "You may begin whenever you are ready.",
       "",
@@ -140,7 +151,6 @@
   // ------------------ Tasks (same structure as experiment.py) ------------------
 
   async function goNoGoTask() {
-    // go_nogo_task() wait_for_space lines, verbatim :contentReference[oaicite:10]{index=10}
     await waitForSpaceWithLines([
       "Go/No-Go Task Instructions:",
       "Press any key as quickly as possible when you see a GREEN square (Go).",
@@ -150,7 +160,6 @@
       "Press SPACE when you are ready to begin."
     ], "INSTRUCTIONS_GONOGO");
 
-    // draw_text("Go/No-Go Task Starting", wait_time=2), verbatim :contentReference[oaicite:11]{index=11}
     setText("Go/No-Go Task Starting");
     await countdown(cfg.startBannerMs ?? 2000, "Go/No-Go");
 
@@ -168,7 +177,7 @@
       if (abort) throw new Error("Aborted");
 
       const isGo = Math.random() < 0.7;
-      const stimulus_type = isGo ? "Go" : "No-Go"; // matches python stimulus_type
+      const stimulus_type = isGo ? "Go" : "No-Go";
       showSquare(isGo ? "rgb(0,150,0)" : "rgb(150,0,0)");
       post("marker", { marker: `GoNoGo_${stimulus_type}` });
 
@@ -176,7 +185,7 @@
       let responded = false;
       let rtMs = null;
 
-      // Python responds to ANY key (KEYDOWN) :contentReference[oaicite:12]{index=12}
+      // Python responds to ANY key (KEYDOWN)
       const onKey = (e) => {
         if (responded) return;
         responded = true;
@@ -200,7 +209,6 @@
   }
 
   async function oneBackTask() {
-    // oneback_task() wait_for_space lines, verbatim :contentReference[oaicite:13]{index=13}
     await waitForSpaceWithLines([
       "1-Back Task Instructions:",
       "A letter will be displayed on the screen.",
@@ -211,7 +219,6 @@
       "Press SPACE when you are ready to begin."
     ], "INSTRUCTIONS_ONEBACK");
 
-    // draw_text("1-Back Task Starting", wait_time=2), verbatim :contentReference[oaicite:14]{index=14}
     setText("1-Back Task Starting");
     await countdown(cfg.startBannerMs ?? 2000, "1-Back");
 
@@ -243,15 +250,12 @@
 
       prev = letter;
       showLetter(letter);
-
-      // matches python marker name :contentReference[oaicite:15]{index=15}
       post("marker", { marker: `1Back_${isTarget ? "Target" : "NonTarget"}` });
 
       const t0 = performance.now();
       let responded = false;
       let rtMs = null;
 
-      // Prompt says SPACE ONLY, so enforce SPACE here
       const onKey = (e) => {
         if (responded) return;
         if (e.code === "Space" || e.key === " ") {
@@ -277,7 +281,6 @@
   }
 
   async function waitBetweenConditions(condition_number) {
-    // wait_between_conditions(condition_number) messages, verbatim :contentReference[oaicite:16]{index=16}
     let messages = [
       "Trial 1 complete.",
       "Prepare for Trial 2: Stand on your LEFT leg with eyes closed.",
@@ -301,7 +304,6 @@
   }
 
   async function posturalBalanceTask() {
-    // postural_balance_task() wait_for_space lines, verbatim :contentReference[oaicite:17]{index=17}
     await waitForSpaceWithLines([
       "Postural Balance Task Instructions:",
       "You will complete three 30-second standing trials, all with eyes closed.",
@@ -313,7 +315,6 @@
       "Press SPACE to start the first trial."
     ], "INSTRUCTIONS_POSTURAL");
 
-    // draw_text("Postural Balance Task Starting", wait_time=2), verbatim :contentReference[oaicite:18]{index=18}
     setText("Postural Balance Task Starting");
     await countdown(cfg.startBannerMs ?? 2000, "Postural");
 
@@ -334,13 +335,11 @@
       const condition = conditions[i];
       setText(condition);
 
-      // matches python marker naming :contentReference[oaicite:19]{index=19}
       post("marker", { marker: `Postural_${condition.replaceAll(" ", "_")}` });
 
       await countdown(trialMs, `Postural ${i + 1}/3`);
 
       if (i < conditions.length - 1) {
-        // condition_number in python is i+1
         await waitBetweenConditions(i + 1);
       }
     }
@@ -348,10 +347,6 @@
     post("marker", { marker: "PHASE_END_POSTURAL" });
     post("phaseEnd", { phase: "Postural" });
 
-    // Python calls wait_between_conditions(condition_number=3) only in the loop logic?
-    // In experiment.py, it shows the "All trials complete / Thank you" when condition_number==3,
-    // but that branch isn't reached via the loop's i < len-1 condition. So we show it here
-    // to match the *intended* final prompt behavior.
     await waitBetweenConditions(3);
   }
 
@@ -367,7 +362,6 @@
       await oneBackTask();
       await posturalBalanceTask();
 
-      // draw_text end screens, verbatim :contentReference[oaicite:20]{index=20}
       setText("Experiment Complete. Saving data...");
       await countdown(cfg.endSavingMs ?? 2000, "Finishing");
 
