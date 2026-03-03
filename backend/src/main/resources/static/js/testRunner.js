@@ -440,16 +440,30 @@
     }
 
     if (msg.type === "done") {
-      finishRunFromPopup().catch(e => log(`finishRunFromPopup error: ${e}`));
-      return;
-    }
+  // Start upload/finalization
+  finishRunFromPopup()
+    .then(() => {
+      // Option B: close the paradigm window after uploads complete
+      if (paradigmWin && !paradigmWin.closed) {
+        try { paradigmWin.close(); } catch {}
+      }
+    })
+    .catch(e => log(`finishRunFromPopup error: ${e}`));
+
+  return;
+}
 
     if (msg.type === "aborted") {
-      abortRequested = true;
-      log(`Paradigm aborted: ${msg.payload?.reason || "unknown"}`);
-      stopRunFromPopup(`Paradigm aborted: ${msg.payload?.reason || "unknown"}`);
-      return;
-    }
+  abortRequested = true;
+  log(`Paradigm aborted: ${msg.payload?.reason || "unknown"}`);
+
+  if (paradigmWin && !paradigmWin.closed) {
+    try { paradigmWin.close(); } catch {}
+  }
+
+  stopRunFromPopup(`Paradigm aborted: ${msg.payload?.reason || "unknown"}`);
+  return;
+}
   });
 
   async function runParadigm() {
