@@ -79,6 +79,7 @@
   const EEG_DT_MS = 1000 / EEG_SFREQ;
 
   // Per-phase CSV buffers
+  // phaseName -> { EEG: [lines], PPG: [lines], ACC: [lines], GYRO: [lines], MARKERS: [lines], RESPONSES: [lines] }
   const phaseData = new Map();
   let currentPhase = null;
 
@@ -117,9 +118,6 @@
   function trimTo(arr, n) {
     if (arr.length > n) arr.splice(0, arr.length - n);
   }
-
-  // ---------- suggested debug toggles ----------
-  const DEBUG_EEG_HEALTH = true; // set false if too chatty
 
   function consumeMuseBuffers() {
     const now = Date.now();
@@ -194,33 +192,17 @@
       }
     }
 
-    // ----- NEW: per-channel EEG health -----
-    const eegLast = [
-      muse?.eeg?.[0]?.lastwrite ?? 0,
-      muse?.eeg?.[1]?.lastwrite ?? 0,
-      muse?.eeg?.[2]?.lastwrite ?? 0,
-      muse?.eeg?.[3]?.lastwrite ?? 0,
-    ];
-    const eegFresh = eegLast.map(t => (t > 0) && ((now - t) < 1500));
-    const eegOk = eegFresh.every(Boolean);
-
+    // Stream presence checks (guard for missing buffers)
+    const eegOk = !!muse?.eeg?.[0] && (now - muse.eeg[0].lastwrite) < 1500;
     const ppgOk = !!muse?.ppg?.[0] && (now - muse.ppg[0].lastwrite) < 1500;
     const accOk = !!muse?.accelerometer?.[0] && (now - muse.accelerometer[0].lastwrite) < 1500;
     const gyroOk = !!muse?.gyroscope?.[0] && (now - muse.gyroscope[0].lastwrite) < 1500;
 
-    const eegDetail = `EEG:${eegFresh.map(b => (b ? "✓" : "×")).join("")}`;
-    const status = `${eegDetail}  PPG:${ppgOk ? 'OK' : '—'}  ACC:${accOk ? 'OK' : '—'}  GYRO:${gyroOk ? 'OK' : '—'}`;
+    const status = `EEG:${eegOk ? 'OK' : '—'}  PPG:${ppgOk ? 'OK' : '—'}  ACC:${accOk ? 'OK' : '—'}  GYRO:${gyroOk ? 'OK' : '—'}`;
     setPill("pStreams", eegOk ? "ok" : "warn", status);
 
     // Quality runs live; button is optional
     $("btnQuality").disabled = !isConnected || !eegOk;
-
-    // Optional debug logs every ~2 seconds
-    if (DEBUG_EEG_HEALTH && isConnected && (now % 2000 < 60)) {
-      const ages = eegLast.map(t => (t > 0 ? (now - t) : -1));
-      log(`EEG lastwrite age ms: ${ages.join(", ")}`);
-      log(`EEG roll lens: ${eegRoll.map(ch => ch.length).join(", ")}`);
-    }
   }
 
   // ---------- quality check ----------
@@ -265,13 +247,11 @@
     qualityPassed = false;
 
     qualityTimer = setInterval(() => {
-      const minN = Math.floor(EEG_SFREQ / 2);
-      const haveData = eegRoll.every(ch => ch.length >= minN);
-
+      // Wait until we have enough samples (~0.5s) in all channels
+      const haveData = eegRoll.every(ch => ch.length >= Math.floor(EEG_SFREQ / 2));
       if (!haveData) {
-        const lens = eegRoll.map(ch => ch.length);
         renderQuality([10, 10, 10, 10]);
-        setPill("pQuality", "warn", `waiting for EEG… (${lens.join("/")})`);
+        setPill("pQuality", "warn", "waiting for EEG…");
         $("btnStart").disabled = true;
         return;
       }
@@ -280,6 +260,7 @@
       const indices = sds.map(sd => isFinite(sd) ? computeQualityIndex(sd) : 10);
       renderQuality(indices);
 
+      // Pass condition: all channels <= 4 for 2 seconds
       const pass = indices.every(x => x <= 4);
       const now = Date.now();
 
@@ -305,6 +286,7 @@
   }
 
   function runQualityCheck() {
+    // Button-friendly wrapper; quality is live
     startLiveQuality();
   }
 
@@ -401,7 +383,7 @@
     $("btnConnect").disabled = false;
   }
 
-  // --- send config after handshake ---
+  // --- NEW: send config after handshake ---
   function sendConfigToParadigm() {
     if (!paradigmWin || paradigmWin.closed) return;
     paradigmWin.postMessage({
@@ -423,12 +405,12 @@
     const msg = ev.data;
     if (!msg || msg.source !== "PARADIGM") return;
 
+    // --- NEW: handshake ---
     if (msg.type === "hello") {
       log("Paradigm says hello — sending config.");
       sendConfigToParadigm();
       return;
     }
-
     if (msg.type === "configAck") {
       log("Paradigm received config.");
       return;
@@ -458,28 +440,30 @@
     }
 
     if (msg.type === "done") {
-      finishRunFromPopup()
-        .then(() => {
-          // Option B: close the paradigm window after uploads complete
-          if (paradigmWin && !paradigmWin.closed) {
-            try { paradigmWin.close(); } catch {}
-          }
-        })
-        .catch(e => log(`finishRunFromPopup error: ${e}`));
-      return;
-    }
-
-    if (msg.type === "aborted") {
-      abortRequested = true;
-      log(`Paradigm aborted: ${msg.payload?.reason || "unknown"}`);
-
+  // Start upload/finalization
+  finishRunFromPopup()
+    .then(() => {
+      // Option B: close the paradigm window after uploads complete
       if (paradigmWin && !paradigmWin.closed) {
         try { paradigmWin.close(); } catch {}
       }
+    })
+    .catch(e => log(`finishRunFromPopup error: ${e}`));
 
-      stopRunFromPopup(`Paradigm aborted: ${msg.payload?.reason || "unknown"}`);
-      return;
-    }
+  return;
+}
+
+    if (msg.type === "aborted") {
+  abortRequested = true;
+  log(`Paradigm aborted: ${msg.payload?.reason || "unknown"}`);
+
+  if (paradigmWin && !paradigmWin.closed) {
+    try { paradigmWin.close(); } catch {}
+  }
+
+  stopRunFromPopup(`Paradigm aborted: ${msg.payload?.reason || "unknown"}`);
+  return;
+}
   });
 
   async function runParadigm() {
@@ -499,10 +483,12 @@
       } catch {}
     }
 
+    // Setup phase for any pre-start markers
     currentPhase = "Setup";
     ensurePhase(currentPhase);
     marker("WELCOME");
 
+    // Open paradigm popup (dark + requests fullscreen on click)
     const w = window.open(
       "/paradigm.html",
       "paradigmWindow",
@@ -516,18 +502,21 @@
 
     paradigmWin = w;
 
+    // Try to maximize popup (fullscreen itself is requested inside the popup)
     try {
       w.moveTo(0, 0);
       w.resizeTo(screen.availWidth, screen.availHeight);
     } catch {}
 
-    // Retry config a few times for robustness
+    // --- CHANGED: no immediate config send here ---
+    // Instead, the popup will send "hello" when ready, then we reply with config.
+    // Also retry config a few times in case the hello is missed due to timing.
     let tries = 0;
     const retry = setInterval(() => {
       tries++;
       if (!paradigmWin || paradigmWin.closed) { clearInterval(retry); return; }
       sendConfigToParadigm();
-      if (tries >= 10) clearInterval(retry);
+      if (tries >= 10) clearInterval(retry); // ~2 seconds
     }, 200);
 
     showText([
@@ -542,6 +531,7 @@
     setPill("pRun", "bad", "aborting");
     log("Abort requested.");
 
+    // Ask the paradigm to abort, then close it
     if (paradigmWin && !paradigmWin.closed) {
       try { paradigmWin.postMessage({ source: "CONTROLLER", type: "abort", payload: {} }, "*"); } catch {}
       try { paradigmWin.close(); } catch {}
@@ -563,7 +553,10 @@
       if (pollTimer) clearInterval(pollTimer);
       pollTimer = setInterval(consumeMuseBuffers, 50);
 
+      // Quality check runs live automatically now
       startLiveQuality();
+
+      // Button no longer required, but leaving enabled is fine
       $("btnQuality").disabled = false;
 
     } catch (err) {
