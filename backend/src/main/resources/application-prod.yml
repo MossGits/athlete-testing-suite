@@ -1,8 +1,16 @@
 server:
   port: ${PORT:8080}
   forward-headers-strategy: framework
+  tomcat:
+    max-swallow-size: -1
+    max-http-form-post-size: -1
 
 spring:
+  servlet:
+    multipart:
+      max-file-size: -1
+      max-request-size: -1
+
   datasource:
     url: jdbc:postgresql://${PGHOST}:${PGPORT}/${PGDATABASE}
     username: ${PGUSER}
