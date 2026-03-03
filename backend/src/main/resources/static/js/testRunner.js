@@ -383,10 +383,38 @@
     $("btnConnect").disabled = false;
   }
 
+  // --- NEW: send config after handshake ---
+  function sendConfigToParadigm() {
+    if (!paradigmWin || paradigmWin.closed) return;
+    paradigmWin.postMessage({
+      source: "CONTROLLER",
+      type: "config",
+      payload: {
+        goNoGoDurationMs: 120000,
+        oneBackDurationMs: 120000,
+        posturalTrialMs: 30000,
+        stimMs: 500,
+        avgIsiMs: 1200,
+        jitterMaxMs: 500
+      }
+    }, "*");
+  }
+
   // ---------- paradigm popup integration ----------
   window.addEventListener("message", (ev) => {
     const msg = ev.data;
     if (!msg || msg.source !== "PARADIGM") return;
+
+    // --- NEW: handshake ---
+    if (msg.type === "hello") {
+      log("Paradigm says hello — sending config.");
+      sendConfigToParadigm();
+      return;
+    }
+    if (msg.type === "configAck") {
+      log("Paradigm received config.");
+      return;
+    }
 
     if (msg.type === "phaseStart") {
       currentPhase = msg.payload.phase;
@@ -466,19 +494,16 @@
       w.resizeTo(screen.availWidth, screen.availHeight);
     } catch {}
 
-    // Send config to popup
-    w.postMessage({
-      source: "CONTROLLER",
-      type: "config",
-      payload: {
-        goNoGoDurationMs: 120000,
-        oneBackDurationMs: 120000,
-        posturalTrialMs: 30000,
-        stimMs: 500,
-        avgIsiMs: 1200,
-        jitterMaxMs: 500
-      }
-    }, "*");
+    // --- CHANGED: no immediate config send here ---
+    // Instead, the popup will send "hello" when ready, then we reply with config.
+    // Also retry config a few times in case the hello is missed due to timing.
+    let tries = 0;
+    const retry = setInterval(() => {
+      tries++;
+      if (!paradigmWin || paradigmWin.closed) { clearInterval(retry); return; }
+      sendConfigToParadigm();
+      if (tries >= 10) clearInterval(retry); // ~2 seconds
+    }, 200);
 
     showText([
       "Paradigm opened in a separate window.",
@@ -492,8 +517,9 @@
     setPill("pRun", "bad", "aborting");
     log("Abort requested.");
 
-    // Close the paradigm popup if it exists
+    // Ask the paradigm to abort, then close it
     if (paradigmWin && !paradigmWin.closed) {
+      try { paradigmWin.postMessage({ source: "CONTROLLER", type: "abort", payload: {} }, "*"); } catch {}
       try { paradigmWin.close(); } catch {}
     }
 
