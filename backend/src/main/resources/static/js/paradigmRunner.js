@@ -90,6 +90,13 @@
     });
   }
 
+  // ---------- NEW: standardized “prompt between phases” ----------
+  async function waitScreen(lines, transitionMarker) {
+    if (transitionMarker) post("marker", { marker: transitionMarker });
+    setText(lines);
+    await waitForSpace();
+  }
+
   async function runGoNoGo() {
     const durationMs = cfg.goNoGoDurationMs ?? 120000;
     const stimMs = cfg.stimMs ?? 500;
@@ -264,7 +271,30 @@
       await waitForSpace();
 
       await runGoNoGo();
+
+      // ---------- NEW: prompt between phases ----------
+      await waitScreen(
+        [
+          "Go/No-Go complete ✅",
+          "",
+          "Press SPACE to continue to the 1-Back task."
+        ],
+        "TRANSITION_GONOGO_TO_ONEBACK"
+      );
+
       await runOneBack();
+
+      // ---------- NEW: prompt between phases ----------
+      await waitScreen(
+        [
+          "1-Back complete ✅",
+          "",
+          "Next: Postural Balance (eyes closed).",
+          "Press SPACE to continue."
+        ],
+        "TRANSITION_ONEBACK_TO_POSTURAL"
+      );
+
       await runPostural();
 
       setText(["Complete ✅", "", "You may close this window."]);
