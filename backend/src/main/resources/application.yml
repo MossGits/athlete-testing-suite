@@ -1,8 +1,16 @@
 server:
   port: 8080
   forward-headers-strategy: framework
+  tomcat:
+    max-swallow-size: -1
+    max-http-form-post-size: -1
 
 spring:
+  servlet:
+    multipart:
+      max-file-size: -1
+      max-request-size: -1
+
   datasource:
     url: jdbc:postgresql://localhost:5432/athlete_db
     username: athlete_app
@@ -21,8 +29,7 @@ spring:
   mvc:
     problemdetails:
       enabled: true
-
-logging:
-  level:
+  logging:
+    level:
     org.springframework.security: INFO
     org.hibernate.SQL: DEBUG
