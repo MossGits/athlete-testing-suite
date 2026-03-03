@@ -24,9 +24,6 @@ public class SessionFileController {
     private final TestSessionRepo sessions;
     private final SessionFileRepo files;
 
-    // Keep a sane cap to protect your DB (adjust later)
-    private static final long MAX_UPLOAD_BYTES = 50L * 1024 * 1024; // 50 MB
-
     public SessionFileController(TestSessionRepo sessions, SessionFileRepo files) {
         this.sessions = sessions;
         this.files = files;
@@ -64,14 +61,6 @@ public class SessionFileController {
 
             MultipartFile mf = entry.getValue().get(0);
             if (mf == null || mf.isEmpty()) continue;
-
-            if (mf.getSize() > MAX_UPLOAD_BYTES) {
-                return ResponseEntity.badRequest().body(Map.of(
-                        "error", "File too large",
-                        "kind", kind,
-                        "maxBytes", MAX_UPLOAD_BYTES
-                ));
-            }
 
             String originalName = Optional.ofNullable(mf.getOriginalFilename()).orElse(kind + ".csv");
             String contentType = Optional.ofNullable(mf.getContentType()).orElse("text/csv");
