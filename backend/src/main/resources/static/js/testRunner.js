@@ -5,6 +5,7 @@
   - Opens experimental paradigm in a separate fullscreen-capable popup (dark)
   - Records EEG/PPG/ACC/GYRO + markers + responses in the controller window
   - Uploads per-phase CSVs to Spring Boot via /api/sessions/{id}/files (multipart)
+  - NEW: Uses BroadcastChannel (same-origin) so messaging still works even if window.opener becomes null
 */
 
 (function () {
@@ -20,8 +21,10 @@
   function log(msg) {
     const line = `[${new Date().toLocaleTimeString()}] ${msg}`;
     console.log(line);
-    debugEl.textContent = (debugEl.textContent ? debugEl.textContent + "\n" : "") + line;
-    debugEl.scrollTop = debugEl.scrollHeight;
+    if (debugEl) {
+      debugEl.textContent = (debugEl.textContent ? debugEl.textContent + "\n" : "") + line;
+      debugEl.scrollTop = debugEl.scrollHeight;
+    }
   }
 
   function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -51,6 +54,10 @@
     log("Missing sessionId in query string. This page expects ?sessionId=...&athleteId=...&mode=...");
   }
 
+  // ---------- NEW: BroadcastChannel (robust messaging) ----------
+  const bcName = `athlete-paradigm-${sessionId || "nosession"}`;
+  const bc = (typeof BroadcastChannel !== "undefined") ? new BroadcastChannel(bcName) : null;
+
   // ---------- muse + sampling ----------
   const muse = new Muse();
 
@@ -79,7 +86,6 @@
   const EEG_DT_MS = 1000 / EEG_SFREQ;
 
   // Per-phase CSV buffers
-  // phaseName -> { EEG: [lines], PPG: [lines], ACC: [lines], GYRO: [lines], MARKERS: [lines], RESPONSES: [lines] }
   const phaseData = new Map();
   let currentPhase = null;
 
@@ -247,7 +253,6 @@
     qualityPassed = false;
 
     qualityTimer = setInterval(() => {
-      // Wait until we have enough samples (~0.5s) in all channels
       const haveData = eegRoll.every(ch => ch.length >= Math.floor(EEG_SFREQ / 2));
       if (!haveData) {
         renderQuality([10, 10, 10, 10]);
@@ -260,7 +265,6 @@
       const indices = sds.map(sd => isFinite(sd) ? computeQualityIndex(sd) : 10);
       renderQuality(indices);
 
-      // Pass condition: all channels <= 4 for 2 seconds
       const pass = indices.every(x => x <= 4);
       const now = Date.now();
 
@@ -286,7 +290,6 @@
   }
 
   function runQualityCheck() {
-    // Button-friendly wrapper; quality is live
     startLiveQuality();
   }
 
@@ -383,34 +386,40 @@
     $("btnConnect").disabled = false;
   }
 
-  // --- NEW: send config after handshake ---
-  function sendConfigToParadigm() {
-    if (!paradigmWin || paradigmWin.closed) return;
-    paradigmWin.postMessage({
-      source: "CONTROLLER",
-      type: "config",
-      payload: {
-        goNoGoDurationMs: 120000,
-        oneBackDurationMs: 120000,
-        posturalTrialMs: 30000,
-        stimMs: 500,
-        avgIsiMs: 1200,
-        jitterMaxMs: 500
-      }
-    }, "*");
+  // ---------- NEW: send to paradigm via BOTH BC and postMessage ----------
+  function sendToParadigm(type, payload = {}) {
+    const msg = { source: "CONTROLLER", type, payload };
+
+    if (bc) {
+      try { bc.postMessage(msg); } catch {}
+    }
+
+    if (paradigmWin && !paradigmWin.closed) {
+      try { paradigmWin.postMessage(msg, "*"); } catch {}
+    }
   }
 
-  // ---------- paradigm popup integration ----------
-  window.addEventListener("message", (ev) => {
-    const msg = ev.data;
+  function sendConfigToParadigm() {
+    sendToParadigm("config", {
+      goNoGoDurationMs: 120000,
+      oneBackDurationMs: 120000,
+      posturalTrialMs: 30000,
+      stimMs: 500,
+      avgIsiMs: 1200,
+      jitterMaxMs: 500
+    });
+  }
+
+  // ---------- NEW: handle paradigm messages from BOTH postMessage and BroadcastChannel ----------
+  function handleParadigmMessage(msg) {
     if (!msg || msg.source !== "PARADIGM") return;
 
-    // --- NEW: handshake ---
     if (msg.type === "hello") {
       log("Paradigm says hello — sending config.");
       sendConfigToParadigm();
       return;
     }
+
     if (msg.type === "configAck") {
       log("Paradigm received config.");
       return;
@@ -440,31 +449,41 @@
     }
 
     if (msg.type === "done") {
-  // Start upload/finalization
-  finishRunFromPopup()
-    .then(() => {
-      // Option B: close the paradigm window after uploads complete
+      finishRunFromPopup()
+        .then(() => {
+          // Option B: close the paradigm window after uploads complete
+          if (paradigmWin && !paradigmWin.closed) {
+            try { paradigmWin.close(); } catch {}
+          }
+        })
+        .catch(e => log(`finishRunFromPopup error: ${e}`));
+      return;
+    }
+
+    if (msg.type === "aborted") {
+      abortRequested = true;
+      log(`Paradigm aborted: ${msg.payload?.reason || "unknown"}`);
+
       if (paradigmWin && !paradigmWin.closed) {
         try { paradigmWin.close(); } catch {}
       }
-    })
-    .catch(e => log(`finishRunFromPopup error: ${e}`));
 
-  return;
-}
-
-    if (msg.type === "aborted") {
-  abortRequested = true;
-  log(`Paradigm aborted: ${msg.payload?.reason || "unknown"}`);
-
-  if (paradigmWin && !paradigmWin.closed) {
-    try { paradigmWin.close(); } catch {}
+      stopRunFromPopup(`Paradigm aborted: ${msg.payload?.reason || "unknown"}`);
+      return;
+    }
   }
 
-  stopRunFromPopup(`Paradigm aborted: ${msg.payload?.reason || "unknown"}`);
-  return;
-}
+  // postMessage path
+  window.addEventListener("message", (ev) => {
+    handleParadigmMessage(ev.data);
   });
+
+  // BroadcastChannel path
+  if (bc) {
+    bc.onmessage = (ev) => {
+      handleParadigmMessage(ev.data);
+    };
+  }
 
   async function runParadigm() {
     abortRequested = false;
@@ -488,9 +507,11 @@
     ensurePhase(currentPhase);
     marker("WELCOME");
 
-    // Open paradigm popup (dark + requests fullscreen on click)
+    // NEW: include bc name so popup can use BroadcastChannel reliably
+    const url = `/paradigm.html?bc=${encodeURIComponent(bcName)}`;
+
     const w = window.open(
-      "/paradigm.html",
+      url,
       "paradigmWindow",
       "popup=yes,width=1200,height=800"
     );
@@ -508,9 +529,7 @@
       w.resizeTo(screen.availWidth, screen.availHeight);
     } catch {}
 
-    // --- CHANGED: no immediate config send here ---
-    // Instead, the popup will send "hello" when ready, then we reply with config.
-    // Also retry config a few times in case the hello is missed due to timing.
+    // Retry config a few times for robustness
     let tries = 0;
     const retry = setInterval(() => {
       tries++;
@@ -531,9 +550,9 @@
     setPill("pRun", "bad", "aborting");
     log("Abort requested.");
 
-    // Ask the paradigm to abort, then close it
+    // Ask the paradigm to abort (via both BC and postMessage), then close it
+    sendToParadigm("abort", {});
     if (paradigmWin && !paradigmWin.closed) {
-      try { paradigmWin.postMessage({ source: "CONTROLLER", type: "abort", payload: {} }, "*"); } catch {}
       try { paradigmWin.close(); } catch {}
     }
 
@@ -555,8 +574,6 @@
 
       // Quality check runs live automatically now
       startLiveQuality();
-
-      // Button no longer required, but leaving enabled is fine
       $("btnQuality").disabled = false;
 
     } catch (err) {
