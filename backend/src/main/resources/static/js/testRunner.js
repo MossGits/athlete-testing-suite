@@ -5,7 +5,7 @@
   - Opens experimental paradigm in a separate fullscreen-capable popup (dark)
   - Records EEG/PPG/ACC/GYRO + markers + responses in the controller window
   - Uploads per-phase CSVs to Spring Boot via /api/sessions/{id}/files (multipart)
-  - NEW: Uses BroadcastChannel (same-origin) so messaging still works even if window.opener becomes null
+  - Robust popup messaging: BroadcastChannel + postMessage + localStorage fallback
 */
 
 (function () {
@@ -27,8 +27,6 @@
     }
   }
 
-  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-
   function setPill(pillId, colorClass, text) {
     const pill = $(pillId);
     if (!pill) return;
@@ -36,13 +34,6 @@
     const strong = pill.querySelector("strong");
     dot.className = colorClass;
     strong.textContent = text;
-  }
-
-  function msToClock(ms) {
-    const s = Math.max(0, Math.floor(ms / 1000));
-    const mm = String(Math.floor(s / 60)).padStart(2, '0');
-    const ss = String(s % 60).padStart(2, '0');
-    return `${mm}:${ss}`;
   }
 
   // ---------- wire query params ----------
@@ -54,42 +45,32 @@
     log("Missing sessionId in query string. This page expects ?sessionId=...&athleteId=...&mode=...");
   }
 
-  // ---------- NEW: BroadcastChannel (robust messaging) ----------
+  // ---------- Robust messaging ----------
   const bcName = `athlete-paradigm-${sessionId || "nosession"}`;
   const bc = (typeof BroadcastChannel !== "undefined") ? new BroadcastChannel(bcName) : null;
+  const storageKey = `paradigm-msg-${bcName}`;
 
   // ---------- muse + sampling ----------
   const muse = new Muse();
-
-  // Rolling last ~1 second for quality
   const EEG_SFREQ = 256;
-
-  // Muse 2 EEG channels: TP9, AF7, AF8, TP10 (NO AUX)
   const EEG_CH = 4;
   const eegRoll = Array.from({ length: EEG_CH }, () => []);
-
   const ppgRoll = [[], [], []];
   const accRoll = [[], [], []];
   const gyroRoll = [[], [], []];
 
-  // Recording state
   let isConnected = false;
   let pollTimer = null;
   let qualityTimer = null;
   let qualityStableSince = null;
-  let qualityPassed = false;
   let isRunning = false;
   let abortRequested = false;
 
-  // Timestamping
   let lastEegTs = null;
   const EEG_DT_MS = 1000 / EEG_SFREQ;
 
-  // Per-phase CSV buffers
   const phaseData = new Map();
   let currentPhase = null;
-
-  // Paradigm popup reference
   let paradigmWin = null;
 
   function ensurePhase(phase) {
@@ -109,16 +90,12 @@
 
   function marker(m) {
     const t = Date.now();
-    if (currentPhase) {
-      ensurePhase(currentPhase).MARKERS.push(`${t},${m}`);
-    }
+    if (currentPhase) ensurePhase(currentPhase).MARKERS.push(`${t},${m}`);
   }
 
   function recordResponse(task, stimulus, correct, rtMs) {
     const t = Date.now();
-    if (currentPhase) {
-      ensurePhase(currentPhase).RESPONSES.push(`${t},${task},${stimulus},${correct ? 1 : 0},${rtMs ?? 0}`);
-    }
+    if (currentPhase) ensurePhase(currentPhase).RESPONSES.push(`${t},${task},${stimulus},${correct ? 1 : 0},${rtMs ?? 0}`);
   }
 
   function trimTo(arr, n) {
@@ -128,16 +105,10 @@
   function consumeMuseBuffers() {
     const now = Date.now();
 
-    // ---- EEG (4 channels: TP9, AF7, AF8, TP10) ----
+    // EEG
     while (true) {
       if (!muse?.eeg || muse.eeg.length < 4) break;
-
-      const v = [
-        muse.eeg[0].read(),
-        muse.eeg[1].read(),
-        muse.eeg[2].read(),
-        muse.eeg[3].read(),
-      ];
+      const v = [muse.eeg[0].read(), muse.eeg[1].read(), muse.eeg[2].read(), muse.eeg[3].read()];
       if (v.some(x => x === null)) break;
 
       for (let i = 0; i < 4; i++) {
@@ -148,57 +119,58 @@
       if (isRunning && currentPhase) {
         if (lastEegTs === null) lastEegTs = Date.now();
         lastEegTs += EEG_DT_MS;
-        const t = Math.round(lastEegTs);
-        ensurePhase(currentPhase).EEG.push(`${t},${v[0]},${v[1]},${v[2]},${v[3]}`);
+        ensurePhase(currentPhase).EEG.push(`${Math.round(lastEegTs)},${v[0]},${v[1]},${v[2]},${v[3]}`);
       }
     }
 
-    // ---- PPG (3 channels) ----
+    // PPG
     while (true) {
       if (!muse?.ppg || muse.ppg.length < 3) break;
       const v = [muse.ppg[0].read(), muse.ppg[1].read(), muse.ppg[2].read()];
       if (v.some(x => x === null)) break;
+
       for (let i = 0; i < 3; i++) {
         ppgRoll[i].push(v[i]);
         trimTo(ppgRoll[i], 256);
       }
+
       if (isRunning && currentPhase) {
-        const t = Date.now();
-        ensurePhase(currentPhase).PPG.push(`${t},${v[0]},${v[1]},${v[2]}`);
+        ensurePhase(currentPhase).PPG.push(`${Date.now()},${v[0]},${v[1]},${v[2]}`);
       }
     }
 
-    // ---- ACC (3 axes) ----
+    // ACC
     while (true) {
       if (!muse?.accelerometer || muse.accelerometer.length < 3) break;
       const v = [muse.accelerometer[0].read(), muse.accelerometer[1].read(), muse.accelerometer[2].read()];
       if (v.some(x => x === null)) break;
+
       for (let i = 0; i < 3; i++) {
         accRoll[i].push(v[i]);
         trimTo(accRoll[i], 256);
       }
+
       if (isRunning && currentPhase) {
-        const t = Date.now();
-        ensurePhase(currentPhase).ACC.push(`${t},${v[0]},${v[1]},${v[2]}`);
+        ensurePhase(currentPhase).ACC.push(`${Date.now()},${v[0]},${v[1]},${v[2]}`);
       }
     }
 
-    // ---- GYRO (3 axes) ----
+    // GYRO
     while (true) {
       if (!muse?.gyroscope || muse.gyroscope.length < 3) break;
       const v = [muse.gyroscope[0].read(), muse.gyroscope[1].read(), muse.gyroscope[2].read()];
       if (v.some(x => x === null)) break;
+
       for (let i = 0; i < 3; i++) {
         gyroRoll[i].push(v[i]);
         trimTo(gyroRoll[i], 256);
       }
+
       if (isRunning && currentPhase) {
-        const t = Date.now();
-        ensurePhase(currentPhase).GYRO.push(`${t},${v[0]},${v[1]},${v[2]}`);
+        ensurePhase(currentPhase).GYRO.push(`${Date.now()},${v[0]},${v[1]},${v[2]}`);
       }
     }
 
-    // Stream presence checks (guard for missing buffers)
     const eegOk = !!muse?.eeg?.[0] && (now - muse.eeg[0].lastwrite) < 1500;
     const ppgOk = !!muse?.ppg?.[0] && (now - muse.ppg[0].lastwrite) < 1500;
     const accOk = !!muse?.accelerometer?.[0] && (now - muse.accelerometer[0].lastwrite) < 1500;
@@ -207,7 +179,6 @@
     const status = `EEG:${eegOk ? 'OK' : '—'}  PPG:${ppgOk ? 'OK' : '—'}  ACC:${accOk ? 'OK' : '—'}  GYRO:${gyroOk ? 'OK' : '—'}`;
     setPill("pStreams", eegOk ? "ok" : "warn", status);
 
-    // Quality runs live; button is optional
     $("btnQuality").disabled = !isConnected || !eegOk;
   }
 
@@ -246,11 +217,10 @@
 
   function startLiveQuality() {
     $("qualityPanel").style.display = "block";
-    if (qualityTimer) return; // already running
+    if (qualityTimer) return;
 
     setPill("pQuality", "warn", "running");
     qualityStableSince = null;
-    qualityPassed = false;
 
     qualityTimer = setInterval(() => {
       const haveData = eegRoll.every(ch => ch.length >= Math.floor(EEG_SFREQ / 2));
@@ -273,7 +243,6 @@
         const stableMs = now - qualityStableSince;
 
         if (stableMs >= 2000) {
-          qualityPassed = true;
           setPill("pQuality", "ok", "PASSED");
           $("btnStart").disabled = false;
         } else {
@@ -282,7 +251,6 @@
         }
       } else {
         qualityStableSince = null;
-        qualityPassed = false;
         $("btnStart").disabled = true;
         setPill("pQuality", "warn", "adjust electrodes");
       }
@@ -295,7 +263,6 @@
 
   // ---------- UI stage helpers ----------
   const stage = $("stage");
-  const timerEl = $("timer");
 
   function showText(lines) {
     stage.style.background = "rgba(0,0,0,0.25)";
@@ -386,14 +353,13 @@
     $("btnConnect").disabled = false;
   }
 
-  // ---------- NEW: send to paradigm via BOTH BC and postMessage ----------
+  // ---------- send to paradigm (BC + postMessage) ----------
   function sendToParadigm(type, payload = {}) {
     const msg = { source: "CONTROLLER", type, payload };
 
     if (bc) {
       try { bc.postMessage(msg); } catch {}
     }
-
     if (paradigmWin && !paradigmWin.closed) {
       try { paradigmWin.postMessage(msg, "*"); } catch {}
     }
@@ -410,38 +376,22 @@
     });
   }
 
-  // ---------- NEW: handle paradigm messages from BOTH postMessage and BroadcastChannel ----------
+  // ---------- receive from paradigm (postMessage + BC + storage) ----------
   function handleParadigmMessage(msg) {
     if (!msg || msg.source !== "PARADIGM") return;
 
-    if (msg.type === "hello") {
-      log("Paradigm says hello — sending config.");
-      sendConfigToParadigm();
-      return;
-    }
+    // Helpful breadcrumb
+    log(`RX PARADIGM: ${msg.type}`);
 
-    if (msg.type === "configAck") {
-      log("Paradigm received config.");
-      return;
-    }
+    if (msg.type === "hello") { sendConfigToParadigm(); return; }
+    if (msg.type === "configAck") { log("Paradigm received config."); return; }
 
     if (msg.type === "phaseStart") {
       currentPhase = msg.payload.phase;
       ensurePhase(currentPhase);
-      log(`Paradigm phaseStart: ${currentPhase}`);
       return;
     }
-
-    if (msg.type === "phaseEnd") {
-      log(`Paradigm phaseEnd: ${msg.payload.phase}`);
-      return;
-    }
-
-    if (msg.type === "marker") {
-      marker(msg.payload.marker);
-      return;
-    }
-
+    if (msg.type === "marker") { marker(msg.payload.marker); return; }
     if (msg.type === "response") {
       const r = msg.payload;
       recordResponse(r.task, r.stimulus, !!r.correct, r.rtMs);
@@ -449,41 +399,47 @@
     }
 
     if (msg.type === "done") {
-      finishRunFromPopup()
-        .then(() => {
-          // Option B: close the paradigm window after uploads complete
+      (async () => {
+        try {
+          await finishRunFromPopup();
+        } catch (e) {
+          log(`finishRunFromPopup error: ${e?.message || e}`);
+          stopRunFromPopup(`Upload failed: ${e?.message || e}`);
+        } finally {
           if (paradigmWin && !paradigmWin.closed) {
             try { paradigmWin.close(); } catch {}
           }
-        })
-        .catch(e => log(`finishRunFromPopup error: ${e}`));
+        }
+      })();
       return;
     }
 
     if (msg.type === "aborted") {
       abortRequested = true;
-      log(`Paradigm aborted: ${msg.payload?.reason || "unknown"}`);
-
+      stopRunFromPopup(`Paradigm aborted: ${msg.payload?.reason || "unknown"}`);
       if (paradigmWin && !paradigmWin.closed) {
         try { paradigmWin.close(); } catch {}
       }
-
-      stopRunFromPopup(`Paradigm aborted: ${msg.payload?.reason || "unknown"}`);
       return;
     }
   }
 
   // postMessage path
-  window.addEventListener("message", (ev) => {
-    handleParadigmMessage(ev.data);
-  });
+  window.addEventListener("message", (ev) => handleParadigmMessage(ev.data));
 
   // BroadcastChannel path
   if (bc) {
-    bc.onmessage = (ev) => {
-      handleParadigmMessage(ev.data);
-    };
+    bc.onmessage = (ev) => handleParadigmMessage(ev.data);
   }
+
+  // localStorage storage-event path
+  window.addEventListener("storage", (ev) => {
+    if (ev.key !== storageKey || !ev.newValue) return;
+    try {
+      const msg = JSON.parse(ev.newValue);
+      handleParadigmMessage(msg);
+    } catch {}
+  });
 
   async function runParadigm() {
     abortRequested = false;
@@ -502,19 +458,13 @@
       } catch {}
     }
 
-    // Setup phase for any pre-start markers
     currentPhase = "Setup";
     ensurePhase(currentPhase);
     marker("WELCOME");
 
-    // NEW: include bc name so popup can use BroadcastChannel reliably
+    // IMPORTANT: include bc param so popup joins same BroadcastChannel + storage key
     const url = `/paradigm.html?bc=${encodeURIComponent(bcName)}`;
-
-    const w = window.open(
-      url,
-      "paradigmWindow",
-      "popup=yes,width=1200,height=800"
-    );
+    const w = window.open(url, "paradigmWindow", "popup=yes,width=1200,height=800");
 
     if (!w) {
       stopRunFromPopup("Popup blocked. Allow popups for this site.");
@@ -523,7 +473,6 @@
 
     paradigmWin = w;
 
-    // Try to maximize popup (fullscreen itself is requested inside the popup)
     try {
       w.moveTo(0, 0);
       w.resizeTo(screen.availWidth, screen.availHeight);
@@ -535,7 +484,7 @@
       tries++;
       if (!paradigmWin || paradigmWin.closed) { clearInterval(retry); return; }
       sendConfigToParadigm();
-      if (tries >= 10) clearInterval(retry); // ~2 seconds
+      if (tries >= 10) clearInterval(retry);
     }, 200);
 
     showText([
@@ -550,7 +499,6 @@
     setPill("pRun", "bad", "aborting");
     log("Abort requested.");
 
-    // Ask the paradigm to abort (via both BC and postMessage), then close it
     sendToParadigm("abort", {});
     if (paradigmWin && !paradigmWin.closed) {
       try { paradigmWin.close(); } catch {}
@@ -559,7 +507,6 @@
     stopRunFromPopup("Aborted by user.");
   }
 
-  // ---------- connect + polling ----------
   async function connectMuse() {
     try {
       setPill("pMuse", "warn", "connecting");
@@ -572,7 +519,6 @@
       if (pollTimer) clearInterval(pollTimer);
       pollTimer = setInterval(consumeMuseBuffers, 50);
 
-      // Quality check runs live automatically now
       startLiveQuality();
       $("btnQuality").disabled = false;
 
