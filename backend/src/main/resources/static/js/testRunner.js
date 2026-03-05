@@ -367,9 +367,9 @@
 
   function sendConfigToParadigm() {
     sendToParadigm("config", {
-      goNoGoDurationMs: 120000,
-      oneBackDurationMs: 120000,
-      posturalTrialMs: 30000,
+      goNoGoDurationMs: 15000,
+      oneBackDurationMs: 15000,
+      posturalTrialMs: 15000,
       stimMs: 500,
       avgIsiMs: 1200,
       jitterMaxMs: 500
