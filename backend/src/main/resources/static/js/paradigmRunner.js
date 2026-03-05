@@ -4,6 +4,11 @@
   const btnAbort = document.getElementById("btnAbort");
   const timerEl = document.getElementById("timer");
 
+  // ---------- NEW: BroadcastChannel support (more robust than window.opener) ----------
+  const qs = new URLSearchParams(location.search);
+  const bcName = qs.get("bc"); // controller can open /paradigm.html?bc=athlete-paradigm-<sessionId>
+  const bc = (bcName && typeof BroadcastChannel !== "undefined") ? new BroadcastChannel(bcName) : null;
+
   // Defaults so cfg is NEVER null
   let cfg = {
     goNoGoDurationMs: 120000,
@@ -25,9 +30,18 @@
   let abort = false;
   let hasConfigFromController = false;
 
+  // ---------- CHANGED: post via BroadcastChannel (if available) + window.opener fallback ----------
   function post(type, payload = {}) {
+    const msg = { source: "PARADIGM", type, payload };
+
+    // Primary: BroadcastChannel (works even if window.opener becomes null)
+    if (bc) {
+      try { bc.postMessage(msg); } catch {}
+    }
+
+    // Secondary: opener (your original behavior)
     if (window.opener) {
-      window.opener.postMessage({ source: "PARADIGM", type, payload }, "*");
+      try { window.opener.postMessage(msg, "*"); } catch {}
     }
   }
 
@@ -393,9 +407,8 @@
     }
   });
 
-  // Receive config from controller + abort requests
-  window.addEventListener("message", (ev) => {
-    const msg = ev.data;
+  // ---------- NEW: handle controller messages from BOTH postMessage and BroadcastChannel ----------
+  function handleControllerMessage(msg) {
     if (!msg || msg.source !== "CONTROLLER") return;
 
     if (msg.type === "config") {
@@ -412,10 +425,22 @@
       post("aborted", { reason: "Abort requested by controller" });
       return;
     }
+  }
+
+  // Receive config from controller + abort requests (postMessage path)
+  window.addEventListener("message", (ev) => {
+    handleControllerMessage(ev.data);
   });
 
+  // Receive config from controller + abort requests (BroadcastChannel path)
+  if (bc) {
+    bc.onmessage = (ev) => {
+      handleControllerMessage(ev.data);
+    };
+  }
+
   // If opened manually without controller:
-  if (!window.opener) {
+  if (!window.opener && !bc) {
     setText(["No controller window found.", "", "Open this from the Baseline/Active test page."]);
     btnStartFs.disabled = true;
   } else {
