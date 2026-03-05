@@ -294,28 +294,35 @@
     post("phaseEnd", { phase: "OneBack" });
   }
 
-  async function waitBetweenConditions(condition_number) {
-    let messages = [
-      "Trial 1 complete.",
-      "Prepare for Trial 2: Stand on your LEFT leg with eyes closed.",
+async function waitBetweenConditions(condition_number) {
+  let messages = [
+    "Trial 1 complete.",
+    "Prepare for Trial 2: Stand on your LEFT leg with eyes closed.",
+    "Press SPACE when you are ready."
+  ];
+  if (condition_number === 2) {
+    messages = [
+      "Trial 2 complete.",
+      "Prepare for Trial 3: Stand on your RIGHT leg with eyes closed.",
       "Press SPACE when you are ready."
     ];
-    if (condition_number === 2) {
-      messages = [
-        "Trial 2 complete.",
-        "Prepare for Trial 3: Stand on your RIGHT leg with eyes closed.",
-        "Press SPACE when you are ready."
-      ];
-    } else if (condition_number === 3) {
-      messages = [
-        "All trials complete.",
-        "Thank you for your participation."
-      ];
-    }
-
-    setText(messages);
-    await waitForSpace();
+  } else if (condition_number === 3) {
+    messages = [
+      "All trials complete.",
+      "Thank you for your participation."
+    ];
   }
+
+  setText(messages);
+
+  // For the final screen, auto-advance after 2 seconds (no SPACE required)
+  if (condition_number === 3) {
+    await sleep(2000);
+    return;
+  }
+
+  await waitForSpace();
+}
 
   async function posturalBalanceTask() {
     await waitForSpaceWithLines([
