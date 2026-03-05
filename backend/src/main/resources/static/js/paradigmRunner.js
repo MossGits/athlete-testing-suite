@@ -4,10 +4,11 @@
   const btnAbort = document.getElementById("btnAbort");
   const timerEl = document.getElementById("timer");
 
-  // ---------- NEW: BroadcastChannel support (more robust than window.opener) ----------
+  // ---------- Robust messaging (BC + opener + storage) ----------
   const qs = new URLSearchParams(location.search);
-  const bcName = qs.get("bc"); // controller can open /paradigm.html?bc=athlete-paradigm-<sessionId>
+  const bcName = qs.get("bc"); // controller opens /paradigm.html?bc=athlete-paradigm-<sessionId>
   const bc = (bcName && typeof BroadcastChannel !== "undefined") ? new BroadcastChannel(bcName) : null;
+  const storageKey = bcName ? `paradigm-msg-${bcName}` : "paradigm-msg-nosession";
 
   // Defaults so cfg is NEVER null
   let cfg = {
@@ -30,19 +31,24 @@
   let abort = false;
   let hasConfigFromController = false;
 
-  // ---------- CHANGED: post via BroadcastChannel (if available) + window.opener fallback ----------
+  // ---------- CHANGED: post via BC + opener + storage ----------
   function post(type, payload = {}) {
     const msg = { source: "PARADIGM", type, payload };
 
-    // Primary: BroadcastChannel (works even if window.opener becomes null)
+    // 1) BroadcastChannel (best)
     if (bc) {
       try { bc.postMessage(msg); } catch {}
     }
 
-    // Secondary: opener (your original behavior)
+    // 2) window.opener (fallback)
     if (window.opener) {
       try { window.opener.postMessage(msg, "*"); } catch {}
     }
+
+    // 3) localStorage (robust same-origin fallback)
+    try {
+      localStorage.setItem(storageKey, JSON.stringify({ ts: Date.now(), ...msg }));
+    } catch {}
   }
 
   function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -65,7 +71,6 @@
     let el = document.getElementById("stageText");
     if (!el) {
       const root = document.getElementById("root");
-      // Recreate a text container if root was cleared by showSquare/showBlank
       root.innerHTML = `<div id="stageText"></div>`;
       el = document.getElementById("stageText");
     }
@@ -104,7 +109,6 @@
     });
   }
 
-  // Equivalent to wait_for_space(instruction_lines=[...]) in experiment.py
   async function waitForSpaceWithLines(lines, markerName) {
     if (markerName) post("marker", { marker: markerName });
     setText(lines);
@@ -129,7 +133,6 @@
       `<div style="font-size:200px;font-weight:900;letter-spacing:2px">${letter}</div>`;
   }
 
-  // ---------- FIX: keep a stageText node alive instead of pure empty ----------
   function showBlank() {
     const root = document.getElementById("root");
     root.innerHTML = `<div id="stageText"></div>`;
@@ -161,8 +164,6 @@
     ];
     await waitForSpaceWithLines(instructions, "INSTRUCTIONS_START");
   }
-
-  // ------------------ Tasks (same structure as experiment.py) ------------------
 
   async function goNoGoTask() {
     await waitForSpaceWithLines([
@@ -199,7 +200,6 @@
       let responded = false;
       let rtMs = null;
 
-      // Python responds to ANY key (KEYDOWN)
       const onKey = (e) => {
         if (responded) return;
         responded = true;
@@ -364,7 +364,6 @@
     await waitBetweenConditions(3);
   }
 
-  // ------------------ Main flow (matches run_experiment()) ------------------
   async function runAll() {
     try {
       post("started", {});
@@ -407,7 +406,6 @@
     }
   });
 
-  // ---------- NEW: handle controller messages from BOTH postMessage and BroadcastChannel ----------
   function handleControllerMessage(msg) {
     if (!msg || msg.source !== "CONTROLLER") return;
 
@@ -427,12 +425,10 @@
     }
   }
 
-  // Receive config from controller + abort requests (postMessage path)
   window.addEventListener("message", (ev) => {
     handleControllerMessage(ev.data);
   });
 
-  // Receive config from controller + abort requests (BroadcastChannel path)
   if (bc) {
     bc.onmessage = (ev) => {
       handleControllerMessage(ev.data);
