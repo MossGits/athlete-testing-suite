@@ -12,9 +12,9 @@
 
   // Defaults so cfg is NEVER null
   let cfg = {
-    goNoGoDurationMs: 120000,
-    oneBackDurationMs: 120000,
-    posturalTrialMs: 30000,
+    goNoGoDurationMs: 15000,
+    oneBackDurationMs: 15000,
+    posturalTrialMs: 15000,
 
     // match experiment.py defaults: stim_time=0.5, avg_isi=1.2, jitter_max=0.5 (seconds)
     stimSec: 0.5,
@@ -22,10 +22,10 @@
     jitterMaxSec: 0.5,
 
     // match show_welcome() wait(15) and draw_text(...wait_time=2/3)
-    welcomeMs: 15000,
-    startBannerMs: 2000,
-    endSavingMs: 2000,
-    endSavedMs: 3000
+    welcomeMs: 2000,
+    startBannerMs: 500,
+    endSavingMs: 500,
+    endSavedMs: 500
   };
 
   let abort = false;
