@@ -16,6 +16,8 @@ import java.security.MessageDigest;
 import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.zip.GZIPOutputStream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 @RestController
 @RequestMapping("/api/sessions")
@@ -145,6 +147,50 @@ public class SessionFileController {
         return ResponseEntity.ok()
                 .headers(headers)
                 .body(sf.getData());
+    }
+
+    /**
+     * Download ALL files for a session in a single ZIP.
+     * Each file is stored as-is (often .csv.gz).
+     *
+     * GET /api/sessions/{sessionId}/files.zip
+     */
+    @GetMapping("/{sessionId}/files.zip")
+    public ResponseEntity<byte[]> downloadSessionZip(@PathVariable UUID sessionId) throws Exception {
+        // ensure session exists
+        sessions.findById(sessionId).orElseThrow();
+
+        var list = files.findAllBySessionId(sessionId);
+        if (list == null || list.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (ZipOutputStream zos = new ZipOutputStream(baos)) {
+            for (SessionFile sf : list) {
+                String filename = (sf.getFilename() != null && !sf.getFilename().isBlank())
+                        ? sf.getFilename()
+                        : (sf.getKind() + ".bin");
+
+                // Put each stored file under a folder named by its kind
+                String entryName = sf.getKind() + "/" + filename;
+
+                zos.putNextEntry(new ZipEntry(entryName));
+                zos.write(sf.getData());
+                zos.closeEntry();
+            }
+        }
+
+        byte[] zipBytes = baos.toByteArray();
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+        headers.set(HttpHeaders.CONTENT_DISPOSITION,
+                "attachment; filename=\"session_" + sessionId + "_files.zip\"");
+
+        return ResponseEntity.ok()
+                .headers(headers)
+                .body(zipBytes);
     }
 
     private static String normalizeKind(String raw) {
