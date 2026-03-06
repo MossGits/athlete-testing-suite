@@ -92,7 +92,6 @@
         <h3 style="margin-top:0;">Selected Athlete</h3>
         <div id="selectedAthleteCard" class="note">Select an athlete to begin.</div>
 
-        <!-- OPTIONAL CLEANUP APPLIED: removed "Connect Device" section -->
         <div style="margin-top: 1rem;">
           <h3>Run Diagnostic Session</h3>
           <div class="note" style="margin-bottom:.5rem;">
@@ -213,7 +212,7 @@
       else hint.textContent = 'Ready — Muse will connect in the test window.';
     }
 
-    // Modal buttons (kept, but disabled since popup handles tests now)
+    // Modal buttons (disabled since popup handles tests now)
     const mStart = document.getElementById('modalBtnStart');
     const mSave = document.getElementById('modalBtnSave');
     const mDiscard = document.getElementById('modalBtnDiscard');
@@ -495,7 +494,7 @@
     await loadTrainerTestsForSelectedAthlete();
   }
 
-  // ---------- UPDATED: Past Diagnostic Tests now shows sessions with Download ----------
+  // ---------- Past Diagnostic Tests now shows sessions with Download ----------
   async function loadTrainerTestsForSelectedAthlete() {
     const listEl = document.getElementById('trainerTestsList');
     const emptyEl = document.getElementById('trainerTestsEmpty');
