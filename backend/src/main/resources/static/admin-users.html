@@ -489,13 +489,13 @@
     document.getElementById('selectedAthleteCard').textContent =
       `${name}\n${email}${org ? '\n' + org : ''}`;
 
-    // If a modal is open and the trainer switches athletes, close it to avoid mis-assignments
     if (activeModal.open) closeTestModal(true);
 
     updateTrainerButtons();
     await loadTrainerTestsForSelectedAthlete();
   }
 
+  // ---------- UPDATED: Past Diagnostic Tests now shows sessions with Download ----------
   async function loadTrainerTestsForSelectedAthlete() {
     const listEl = document.getElementById('trainerTestsList');
     const emptyEl = document.getElementById('trainerTestsEmpty');
@@ -512,17 +512,23 @@
 
     emptyEl.hidden = true;
 
-    const id = selectedAthlete.athleteProfileId ?? selectedAthlete.userId ?? selectedAthlete.email;
-    let r = await fetchJson(`/api/trainer/athletes/${encodeURIComponent(id)}/tests`);
+    // IMPORTANT: use the same athleteRef you use when creating sessions
+    const athleteRef = selectedAthlete.athleteProfileId ?? selectedAthlete.userId;
+    if (!athleteRef) {
+      emptyEl.hidden = false;
+      emptyEl.textContent = 'Selected athlete has no athleteProfileId/userId.';
+      return;
+    }
 
+    const r = await fetchJson(`/api/trainer/athletes/${encodeURIComponent(athleteRef)}/tests`);
     if (!r.ok) {
       emptyEl.hidden = false;
-      emptyEl.textContent = 'Tests API not available yet (expected GET /api/trainer/athletes/{id}/tests).';
+      emptyEl.textContent = `Unable to load tests (HTTP ${r.status}).`;
       return;
     }
 
     const tests = Array.isArray(r.data) ? r.data : [];
-    const ordered = sortNewestFirst(tests, 'startedAt');
+    const ordered = sortNewestFirst(tests, 'createdAt');
 
     if (ordered.length === 0) {
       emptyEl.hidden = false;
@@ -531,31 +537,60 @@
     }
 
     ordered.forEach(t => {
-      const when = fmtDateTime(t.startedAt || t.dateTime || t.createdAt);
-      const label = t.label || 'Muse 2 Test';
+      const sessionId = t.sessionId || t.id; // support either field name
+      const when = fmtDateTime(t.createdAt || t.startedAt || t.dateTime);
+      const mode = String(t.mode || 'UNKNOWN').toUpperCase();
+      const status = String(t.status || '—');
+
+      const row = document.createElement('div');
+      row.style.display = 'flex';
+      row.style.gap = '.5rem';
+      row.style.alignItems = 'center';
+      row.style.marginBottom = '.5rem';
+
       const btn = document.createElement('button');
       btn.className = 'btn ghost';
-      btn.style.width = '100%';
+      btn.style.flex = '1';
+      btn.style.display = 'flex';
       btn.style.justifyContent = 'space-between';
-      btn.style.marginBottom = '.5rem';
-      btn.innerHTML = `<span>${label}</span><span class="pill">${when}</span>`;
-      btn.onclick = () => showTrainerTestDetail(t);
-      listEl.appendChild(btn);
+      btn.innerHTML = `<span>${mode} — ${when}</span><span class="pill">${status}</span>`;
+      btn.onclick = () => showTrainerTestDetail({ ...t, sessionId });
+
+      const dl = document.createElement('button');
+      dl.className = 'btn';
+      dl.textContent = 'Download';
+      dl.disabled = !sessionId;
+      dl.onclick = (ev) => {
+        ev.stopPropagation();
+        if (!sessionId) return;
+        window.location.href = `/api/sessions/${encodeURIComponent(sessionId)}/files.zip`;
+      };
+
+      row.appendChild(btn);
+      row.appendChild(dl);
+      listEl.appendChild(row);
     });
   }
 
+  // ---------- UPDATED: detail panel shows sessionId + download link ----------
   function showTrainerTestDetail(test) {
     const el = document.getElementById('trainerTestDetail');
-    const when = fmtDateTime(test.startedAt || test.dateTime || test.createdAt);
+    const when = fmtDateTime(test.createdAt || test.startedAt || test.dateTime);
+    const mode = String(test.mode || 'UNKNOWN').toUpperCase();
+    const status = String(test.status || '—');
+    const sessionId = test.sessionId || test.id || '(unknown)';
+
     el.hidden = false;
     el.textContent =
-      `Test: ${test.label || 'Muse 2 Test'}\n` +
-      `Date/Time: ${when}\n` +
-      `\n` +
-      `Details:\n` +
-      `${test.summary || test.notes || '(No additional details yet.)'}\n` +
-      `\n` +
-      `(Raw payload)\n` +
+      `Session: ${sessionId}\n` +
+      `Type: ${mode}\n` +
+      `Status: ${status}\n` +
+      `Created: ${fmtDateTime(test.createdAt)}\n` +
+      (test.startedAt ? `Started: ${fmtDateTime(test.startedAt)}\n` : '') +
+      (test.endedAt ? `Ended: ${fmtDateTime(test.endedAt)}\n` : '') +
+      `\nDownload:\n` +
+      `/api/sessions/${sessionId}/files.zip\n` +
+      `\n(Raw payload)\n` +
       JSON.stringify(test, null, 2);
   }
 
