@@ -196,12 +196,10 @@
   }
 
   function updateTrainerButtons() {
-    // Test type buttons
     const btnBaseline = document.getElementById('btnRunBaseline');
     const btnActive = document.getElementById('btnRunActive');
     const hint = document.getElementById('testTypeHint');
 
-    // Baseline/Active: require athlete selected + modal not already open
     const canOpenModal = !!selectedAthlete && !activeModal.open;
     if (btnBaseline) btnBaseline.disabled = !canOpenModal;
     if (btnActive) btnActive.disabled = !canOpenModal;
@@ -221,8 +219,6 @@
     if (mDiscard) mDiscard.disabled = true;
   }
 
-  // Modal logic
-
   // Test window logic (creates a session, then opens baselinetest.html / activetest.html popup)
   async function openTestModal(type) {
     if (!selectedAthlete) {
@@ -230,8 +226,7 @@
       return;
     }
 
-    // Create session on backend
-    // Prefer the AthleteProfile PK if present, otherwise fall back to userId
+    // IMPORTANT: Prefer athleteProfileId, then userId. (No email fallback.)
     const athleteId = selectedAthlete.athleteProfileId ?? selectedAthlete.userId;
     if (!athleteId) {
       alert("Invalid athlete selection. No athlete ID found.");
@@ -297,15 +292,13 @@
     if (dbg) dbg.textContent = debugText || `Status: ${pillText}`;
   }
 
-  // Placeholder modal functions (no longer used for running tests; popup handles it)
+  // Placeholder modal functions
   async function modalStart() {
     setModalStatus('Disabled', 'Status: Disabled\nUse the Baseline/Active test window to run the test.');
   }
-
   async function modalSave() {
     setModalStatus('Disabled', 'Status: Disabled\nUse the Baseline/Active test window to run the test.');
   }
-
   async function modalDiscard() {
     setModalStatus('Disabled', 'Status: Disabled\nUse the Baseline/Active test window to run the test.');
   }
@@ -324,7 +317,6 @@
     if (modal && !modal.classList.contains('hidden')) closeTestModal();
   });
 
-  // Handles "ATHLETE", "ROLE_ATHLETE", arrays, authorities
   function normalizedRoleString(me) {
     const raw =
       me?.role ??
@@ -494,7 +486,7 @@
     await loadTrainerTestsForSelectedAthlete();
   }
 
-  // ---------- Past Diagnostic Tests now shows sessions with Download ----------
+  // Past Diagnostic Tests now shows sessions with Download
   async function loadTrainerTestsForSelectedAthlete() {
     const listEl = document.getElementById('trainerTestsList');
     const emptyEl = document.getElementById('trainerTestsEmpty');
@@ -511,7 +503,7 @@
 
     emptyEl.hidden = true;
 
-    // IMPORTANT: use the same athleteRef you use when creating sessions
+    // IMPORTANT: No email fallback. Must match what you stored in test_session.athlete_ref.
     const athleteRef = selectedAthlete.athleteProfileId ?? selectedAthlete.userId;
     if (!athleteRef) {
       emptyEl.hidden = false;
@@ -536,7 +528,7 @@
     }
 
     ordered.forEach(t => {
-      const sessionId = t.sessionId || t.id; // support either field name
+      const sessionId = t.sessionId || t.id;
       const when = fmtDateTime(t.createdAt || t.startedAt || t.dateTime);
       const mode = String(t.mode || 'UNKNOWN').toUpperCase();
       const status = String(t.status || '—');
@@ -571,10 +563,8 @@
     });
   }
 
-  // ---------- UPDATED: detail panel shows sessionId + download link ----------
   function showTrainerTestDetail(test) {
     const el = document.getElementById('trainerTestDetail');
-    const when = fmtDateTime(test.createdAt || test.startedAt || test.dateTime);
     const mode = String(test.mode || 'UNKNOWN').toUpperCase();
     const status = String(test.status || '—');
     const sessionId = test.sessionId || test.id || '(unknown)';
