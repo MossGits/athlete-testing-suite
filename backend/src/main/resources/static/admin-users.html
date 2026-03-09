@@ -138,7 +138,6 @@
       <div style="margin-top:.75rem;">
         <pre id="modalDebug" class="note" style="white-space: pre-wrap;">Status: Idle</pre>
       </div>
-
     </div>
 
     <div class="modalFooter">
@@ -225,7 +224,6 @@
       return;
     }
 
-  
     const athleteId = selectedAthlete.athleteProfileId ?? selectedAthlete.userId;
     if (!athleteId) {
       alert("Invalid athlete selection. No athlete ID found.");
@@ -485,7 +483,8 @@
     await loadTrainerTestsForSelectedAthlete();
   }
 
- async function loadTrainerTestsForSelectedAthlete() {
+  // Past Diagnostic Tests: completed only + Download + Delete
+  async function loadTrainerTestsForSelectedAthlete() {
     const listEl = document.getElementById('trainerTestsList');
     const emptyEl = document.getElementById('trainerTestsEmpty');
     const detailEl = document.getElementById('trainerTestDetail');
@@ -517,7 +516,6 @@
 
     const testsRaw = Array.isArray(r.data) ? r.data : [];
 
-    // Only show sessions that were actually completed:
     const completed = testsRaw.filter(t => {
       const status = String(t?.status ?? '').toUpperCase();
       const hasEndedAt = !!t?.endedAt;
@@ -534,7 +532,7 @@
     }
 
     ordered.forEach(t => {
-      const sessionId = t.sessionId || t.id; // support either field name
+      const sessionId = t.sessionId || t.id;
       const when = fmtDateTime(t.createdAt || t.startedAt || t.dateTime);
       const mode = String(t.mode || 'UNKNOWN').toUpperCase();
       const status = String(t.status || '—');
@@ -571,7 +569,9 @@
         ev.stopPropagation();
         if (!sessionId) return;
 
-        const ok = confirm(`Delete this test session?\n\n${mode} — ${when}\nSession: ${sessionId}\n\nThis removes the session and ALL uploaded CSV files.`);
+        const ok = confirm(
+          `Delete this test session?\n\n${mode} — ${when}\nSession: ${sessionId}\n\nThis removes the session and ALL uploaded CSV files.`
+        );
         if (!ok) return;
 
         const res = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}`, {
@@ -585,72 +585,12 @@
           return;
         }
 
-        // refresh list
         await loadTrainerTestsForSelectedAthlete();
       };
 
       row.appendChild(btn);
       row.appendChild(dl);
       row.appendChild(del);
-      listEl.appendChild(row);
-    });
-  }
-   
-    const athleteRef = selectedAthlete.athleteProfileId ?? selectedAthlete.userId;
-    if (!athleteRef) {
-      emptyEl.hidden = false;
-      emptyEl.textContent = 'Selected athlete has no athleteProfileId/userId.';
-      return;
-    }
-
-    const r = await fetchJson(`/api/trainer/athletes/${encodeURIComponent(athleteRef)}/tests`);
-    if (!r.ok) {
-      emptyEl.hidden = false;
-      emptyEl.textContent = `Unable to load tests (HTTP ${r.status}).`;
-      return;
-    }
-
-    const tests = Array.isArray(r.data) ? r.data : [];
-    const ordered = sortNewestFirst(tests, 'createdAt');
-
-    if (ordered.length === 0) {
-      emptyEl.hidden = false;
-      emptyEl.textContent = 'No tests found for this athlete.';
-      return;
-    }
-
-    ordered.forEach(t => {
-      const sessionId = t.sessionId || t.id;
-      const when = fmtDateTime(t.createdAt || t.startedAt || t.dateTime);
-      const mode = String(t.mode || 'UNKNOWN').toUpperCase();
-      const status = String(t.status || '—');
-
-      const row = document.createElement('div');
-      row.style.display = 'flex';
-      row.style.gap = '.5rem';
-      row.style.alignItems = 'center';
-      row.style.marginBottom = '.5rem';
-
-      const btn = document.createElement('button');
-      btn.className = 'btn ghost';
-      btn.style.flex = '1';
-      btn.style.display = 'flex';
-      btn.style.justifyContent = 'space-between';
-      btn.innerHTML = `<span>${mode} — ${when}</span><span class="pill">${status}</span>`;
-      btn.onclick = () => showTrainerTestDetail({ ...t, sessionId });
-
-      const dl = document.createElement('button');
-      dl.className = 'btn';
-      dl.textContent = 'Download';
-      dl.disabled = !sessionId;
-      dl.onclick = (ev) => {
-        ev.stopPropagation();
-        if (!sessionId) return;
-        window.location.href = `/api/sessions/${encodeURIComponent(sessionId)}/files.zip`;
-      };
-
-      row.appendChild(btn);
-      row.appendChild(dl);
       listEl.appendChild(row);
     });
   }
