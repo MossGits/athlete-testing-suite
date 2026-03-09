@@ -193,6 +193,25 @@ public class SessionFileController {
                 .body(zipBytes);
     }
 
+    /**
+     * Delete a session AND all stored files for that session.
+     *
+     * DELETE /api/sessions/{sessionId}
+     */
+    @DeleteMapping("/{sessionId}")
+    public ResponseEntity<?> deleteSession(@PathVariable UUID sessionId) {
+        // ensure session exists
+        sessions.findById(sessionId).orElseThrow();
+
+        // IMPORTANT: requires SessionFileRepo.deleteAllBySessionId(UUID) to exist
+        files.deleteAllBySessionId(sessionId);
+        sessions.deleteById(sessionId);
+
+        return ResponseEntity.ok(Map.of(
+                "deletedSessionId", sessionId.toString()
+        ));
+    }
+
     private static String normalizeKind(String raw) {
         if (raw == null) return "UNKNOWN";
         return raw.trim().toUpperCase(Locale.ROOT);
