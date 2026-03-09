@@ -139,7 +139,6 @@
         <pre id="modalDebug" class="note" style="white-space: pre-wrap;">Status: Idle</pre>
       </div>
 
-      <!-- Can later show live signal quality, countdown timers, etc. here -->
     </div>
 
     <div class="modalFooter">
@@ -226,7 +225,7 @@
       return;
     }
 
-    // IMPORTANT: Prefer athleteProfileId, then userId. (No email fallback.)
+  
     const athleteId = selectedAthlete.athleteProfileId ?? selectedAthlete.userId;
     if (!athleteId) {
       alert("Invalid athlete selection. No athlete ID found.");
@@ -379,7 +378,7 @@
     listEl.innerHTML = '';
     emptyEl.hidden = true;
 
-    const r = await fetchJson('/api/muse/tests'); // TODO: implement later
+    const r = await fetchJson('/api/muse/tests');
     if (!r.ok) {
       emptyEl.hidden = false;
       emptyEl.textContent = 'Tests API not available yet (expected GET /api/muse/tests).';
@@ -486,8 +485,7 @@
     await loadTrainerTestsForSelectedAthlete();
   }
 
-  // Past Diagnostic Tests now shows sessions with Download
-  async function loadTrainerTestsForSelectedAthlete() {
+ async function loadTrainerTestsForSelectedAthlete() {
     const listEl = document.getElementById('trainerTestsList');
     const emptyEl = document.getElementById('trainerTestsEmpty');
     const detailEl = document.getElementById('trainerTestDetail');
@@ -503,7 +501,101 @@
 
     emptyEl.hidden = true;
 
-    // IMPORTANT: No email fallback. Must match what you stored in test_session.athlete_ref.
+    const athleteRef = selectedAthlete.athleteProfileId ?? selectedAthlete.userId;
+    if (!athleteRef) {
+      emptyEl.hidden = false;
+      emptyEl.textContent = 'Selected athlete has no athleteProfileId/userId.';
+      return;
+    }
+
+    const r = await fetchJson(`/api/trainer/athletes/${encodeURIComponent(athleteRef)}/tests`);
+    if (!r.ok) {
+      emptyEl.hidden = false;
+      emptyEl.textContent = `Unable to load tests (HTTP ${r.status}).`;
+      return;
+    }
+
+    const testsRaw = Array.isArray(r.data) ? r.data : [];
+
+    // Only show sessions that were actually completed:
+    const completed = testsRaw.filter(t => {
+      const status = String(t?.status ?? '').toUpperCase();
+      const hasEndedAt = !!t?.endedAt;
+      const statusComplete = status.includes('COMP');
+      return hasEndedAt || statusComplete;
+    });
+
+    const ordered = sortNewestFirst(completed, 'createdAt');
+
+    if (ordered.length === 0) {
+      emptyEl.hidden = false;
+      emptyEl.textContent = 'No completed tests found for this athlete.';
+      return;
+    }
+
+    ordered.forEach(t => {
+      const sessionId = t.sessionId || t.id; // support either field name
+      const when = fmtDateTime(t.createdAt || t.startedAt || t.dateTime);
+      const mode = String(t.mode || 'UNKNOWN').toUpperCase();
+      const status = String(t.status || '—');
+
+      const row = document.createElement('div');
+      row.style.display = 'flex';
+      row.style.gap = '.5rem';
+      row.style.alignItems = 'center';
+      row.style.marginBottom = '.5rem';
+
+      const btn = document.createElement('button');
+      btn.className = 'btn ghost';
+      btn.style.flex = '1';
+      btn.style.display = 'flex';
+      btn.style.justifyContent = 'space-between';
+      btn.innerHTML = `<span>${mode} — ${when}</span><span class="pill">${status}</span>`;
+      btn.onclick = () => showTrainerTestDetail({ ...t, sessionId });
+
+      const dl = document.createElement('button');
+      dl.className = 'btn';
+      dl.textContent = 'Download';
+      dl.disabled = !sessionId;
+      dl.onclick = (ev) => {
+        ev.stopPropagation();
+        if (!sessionId) return;
+        window.location.href = `/api/sessions/${encodeURIComponent(sessionId)}/files.zip`;
+      };
+
+      const del = document.createElement('button');
+      del.className = 'btn ghost';
+      del.textContent = 'Delete';
+      del.disabled = !sessionId;
+      del.onclick = async (ev) => {
+        ev.stopPropagation();
+        if (!sessionId) return;
+
+        const ok = confirm(`Delete this test session?\n\n${mode} — ${when}\nSession: ${sessionId}\n\nThis removes the session and ALL uploaded CSV files.`);
+        if (!ok) return;
+
+        const res = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}`, {
+          method: 'DELETE',
+          credentials: 'include'
+        });
+
+        if (!res.ok) {
+          const txt = await res.text().catch(() => '');
+          alert(`Delete failed (HTTP ${res.status}).\n${txt}`);
+          return;
+        }
+
+        // refresh list
+        await loadTrainerTestsForSelectedAthlete();
+      };
+
+      row.appendChild(btn);
+      row.appendChild(dl);
+      row.appendChild(del);
+      listEl.appendChild(row);
+    });
+  }
+   
     const athleteRef = selectedAthlete.athleteProfileId ?? selectedAthlete.userId;
     if (!athleteRef) {
       emptyEl.hidden = false;
