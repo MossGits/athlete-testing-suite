@@ -31,9 +31,20 @@
   let abort = false;
   let hasConfigFromController = false;
 
-  // ---------- CHANGED: post via BC + opener + storage ----------
-  function post(type, payload = {}) {
-    const msg = { source: "PARADIGM", type, payload };
+ function post(type, payload = {}) {
+  const msg = { source: "PARADIGM", type, payload };
+
+  // Prefer BroadcastChannel; don't double-send.
+  if (bc) {
+    try { bc.postMessage(msg); } catch {}
+    return;
+  }
+
+  // Fallback: opener only if no BC
+  if (window.opener) {
+    try { window.opener.postMessage(msg, "*"); } catch {}
+  }
+}
 
     // 1) BroadcastChannel (best)
     if (bc) {
@@ -66,7 +77,6 @@
     }
   }
 
-  // ---------- FIX: always write to a live #stageText ----------
   function getStageTextEl() {
     let el = document.getElementById("stageText");
     if (!el) {
