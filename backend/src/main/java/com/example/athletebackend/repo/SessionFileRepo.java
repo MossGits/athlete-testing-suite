@@ -10,4 +10,6 @@ import java.util.UUID;
 public interface SessionFileRepo extends JpaRepository<SessionFile, Long> {
     List<SessionFile> findAllBySessionId(UUID sessionId);
     Optional<SessionFile> findBySessionIdAndKind(UUID sessionId, String kind);
+    
+    void deleteAllBySessionId(UUID sessionId);
 }
