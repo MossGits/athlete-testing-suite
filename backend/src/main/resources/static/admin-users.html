@@ -193,6 +193,88 @@
     return { ok: res.ok, status: res.status, text, data };
   }
 
+  async function postJson(url, body) {
+    const res = await fetch(url, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: body == null ? null : JSON.stringify(body)
+    });
+    const text = await res.text();
+    let data = null;
+    try { data = text ? JSON.parse(text) : null; } catch { data = null; }
+    return { ok: res.ok, status: res.status, text, data };
+  }
+
+  function buildTrainerSessionSummary(test) {
+    const mode = String(test.mode || 'UNKNOWN').toUpperCase();
+    const status = String(test.status || '—');
+    const sessionId = test.sessionId || test.id || '(unknown)';
+
+    return (
+      `Session: ${sessionId}\n` +
+      `Type: ${mode}\n` +
+      `Status: ${status}\n` +
+      `Created: ${fmtDateTime(test.createdAt)}\n` +
+      (test.startedAt ? `Started: ${fmtDateTime(test.startedAt)}\n` : '') +
+      (test.endedAt ? `Ended: ${fmtDateTime(test.endedAt)}\n` : '')
+    );
+  }
+
+  async function processSessionFeatures(sessionId, summaryText) {
+    const detailEl = document.getElementById('trainerTestDetail');
+    detailEl.hidden = false;
+    detailEl.textContent =
+      `${summaryText}\n` +
+      `\nProcessing features...\n`;
+
+    const r = await postJson(`/api/sessions/${encodeURIComponent(sessionId)}/process-features`, null);
+
+    if (!r.ok) {
+      detailEl.textContent =
+        `${summaryText}\n` +
+        `\nFeature processing failed (HTTP ${r.status}).\n` +
+        `${r.text || '(No error body returned.)'}`;
+      return;
+    }
+
+    detailEl.textContent =
+      `${summaryText}\n` +
+      `\nProcessed Features\n` +
+      `${JSON.stringify(r.data, null, 2)}`;
+  }
+
+  async function loadProcessedFeatures(sessionId, summaryText) {
+    const detailEl = document.getElementById('trainerTestDetail');
+    detailEl.hidden = false;
+    detailEl.textContent =
+      `${summaryText}\n` +
+      `\nLoading processed features...\n`;
+
+    const r = await fetchJson(`/api/sessions/${encodeURIComponent(sessionId)}/processed-features`);
+
+    if (r.status === 404) {
+      detailEl.textContent =
+        `${summaryText}\n` +
+        `\nNo processed features found yet for this session.\n` +
+        `Use the "Process" button first.`;
+      return;
+    }
+
+    if (!r.ok) {
+      detailEl.textContent =
+        `${summaryText}\n` +
+        `\nUnable to load processed features (HTTP ${r.status}).\n` +
+        `${r.text || '(No error body returned.)'}`;
+      return;
+    }
+
+    detailEl.textContent =
+      `${summaryText}\n` +
+      `\nProcessed Features\n` +
+      `${JSON.stringify(r.data, null, 2)}`;
+  }
+
   function updateTrainerButtons() {
     const btnBaseline = document.getElementById('btnRunBaseline');
     const btnActive = document.getElementById('btnRunActive');
@@ -483,7 +565,7 @@
     await loadTrainerTestsForSelectedAthlete();
   }
 
-  // Past Diagnostic Tests: completed only + Download + Delete
+  // Past Diagnostic Tests: completed only + Process + Features + Download + Delete
   async function loadTrainerTestsForSelectedAthlete() {
     const listEl = document.getElementById('trainerTestsList');
     const emptyEl = document.getElementById('trainerTestsEmpty');
@@ -542,6 +624,7 @@
       row.style.gap = '.5rem';
       row.style.alignItems = 'center';
       row.style.marginBottom = '.5rem';
+      row.style.flexWrap = 'wrap';
 
       const btn = document.createElement('button');
       btn.className = 'btn ghost';
@@ -550,6 +633,36 @@
       btn.style.justifyContent = 'space-between';
       btn.innerHTML = `<span>${mode} — ${when}</span><span class="pill">${status}</span>`;
       btn.onclick = () => showTrainerTestDetail({ ...t, sessionId });
+
+      const processBtn = document.createElement('button');
+      processBtn.className = 'btn';
+      processBtn.textContent = 'Process';
+      processBtn.disabled = !sessionId;
+      processBtn.onclick = async (ev) => {
+        ev.stopPropagation();
+        if (!sessionId) return;
+
+        const summaryText =
+          buildTrainerSessionSummary({ ...t, sessionId }) +
+          `\nDownload:\n/api/sessions/${sessionId}/files.zip`;
+
+        await processSessionFeatures(sessionId, summaryText);
+      };
+
+      const featuresBtn = document.createElement('button');
+      featuresBtn.className = 'btn ghost';
+      featuresBtn.textContent = 'Features';
+      featuresBtn.disabled = !sessionId;
+      featuresBtn.onclick = async (ev) => {
+        ev.stopPropagation();
+        if (!sessionId) return;
+
+        const summaryText =
+          buildTrainerSessionSummary({ ...t, sessionId }) +
+          `\nDownload:\n/api/sessions/${sessionId}/files.zip`;
+
+        await loadProcessedFeatures(sessionId, summaryText);
+      };
 
       const dl = document.createElement('button');
       dl.className = 'btn';
@@ -589,6 +702,8 @@
       };
 
       row.appendChild(btn);
+      row.appendChild(processBtn);
+      row.appendChild(featuresBtn);
       row.appendChild(dl);
       row.appendChild(del);
       listEl.appendChild(row);
@@ -597,18 +712,11 @@
 
   function showTrainerTestDetail(test) {
     const el = document.getElementById('trainerTestDetail');
-    const mode = String(test.mode || 'UNKNOWN').toUpperCase();
-    const status = String(test.status || '—');
     const sessionId = test.sessionId || test.id || '(unknown)';
 
     el.hidden = false;
     el.textContent =
-      `Session: ${sessionId}\n` +
-      `Type: ${mode}\n` +
-      `Status: ${status}\n` +
-      `Created: ${fmtDateTime(test.createdAt)}\n` +
-      (test.startedAt ? `Started: ${fmtDateTime(test.startedAt)}\n` : '') +
-      (test.endedAt ? `Ended: ${fmtDateTime(test.endedAt)}\n` : '') +
+      buildTrainerSessionSummary(test) +
       `\nDownload:\n` +
       `/api/sessions/${sessionId}/files.zip\n` +
       `\n(Raw payload)\n` +
