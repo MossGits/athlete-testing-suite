@@ -195,7 +195,7 @@
       height:14px;
       border-radius:4px;
       display:inline-block;
-      border:1px solid rgba(255,255,255,.25);
+      border:1px solid rgba(0,0,0,.12);
     }
 
     .sessionInfoGrid{
@@ -317,15 +317,15 @@
 
                 <div class="comparisonLegend">
                   <div class="legendItem">
-                    <span class="legendSwatch" id="baselineSwatch" style="background:rgba(255,255,255,0.45)"></span>
+                    <span class="legendSwatch" id="baselineSwatch" style="background:rgba(59,130,246,0.45)"></span>
                     <span id="baselineLegendLabel">Baseline</span>
                   </div>
                   <div class="legendItem">
-                    <span class="legendSwatch" id="comparisonSwatch" style="background:rgba(255,255,255,0.88)"></span>
+                    <span class="legendSwatch" id="comparisonSwatch" style="background:rgba(37,99,235,0.9)"></span>
                     <span id="comparisonLegendLabel">Comparison</span>
                   </div>
                   <div class="legendItem">
-                    <span style="display:inline-block;width:18px;height:2px;background:rgba(255,255,255,0.95);position:relative;top:-1px;"></span>
+                    <span style="display:inline-block;width:18px;height:2px;background:rgba(220,38,38,0.95);position:relative;top:-1px;"></span>
                     <span>Delta / error bar</span>
                   </div>
                 </div>
@@ -668,6 +668,33 @@
     return `${d >= 0 ? '+' : ''}${d.toFixed(digits)}`;
   }
 
+  function getChartColors() {
+    const bg = getComputedStyle(document.body).backgroundColor || '';
+    const isLightBg = bg.includes('255') || bg.includes('254') || bg.includes('253');
+
+    if (isLightBg) {
+      return {
+        grid: 'rgba(0,0,0,0.12)',
+        axis: 'rgba(0,0,0,0.30)',
+        text: 'rgba(0,0,0,0.80)',
+        label: 'rgba(0,0,0,0.92)',
+        baselineBar: 'rgba(59,130,246,0.45)',
+        comparisonBar: 'rgba(37,99,235,0.90)',
+        deltaLine: 'rgba(220,38,38,0.95)'
+      };
+    }
+
+    return {
+      grid: 'rgba(255,255,255,0.18)',
+      axis: 'rgba(255,255,255,0.35)',
+      text: 'rgba(255,255,255,0.78)',
+      label: 'rgba(255,255,255,0.95)',
+      baselineBar: 'rgba(96,165,250,0.55)',
+      comparisonBar: 'rgba(59,130,246,0.95)',
+      deltaLine: 'rgba(248,113,113,0.98)'
+    };
+  }
+
   function buildSessionLabel(test) {
     if (!test) return 'None';
     const mode = String(test.mode || 'UNKNOWN').toUpperCase();
@@ -786,9 +813,11 @@
     const { ctx, width: w, height: h } = getCanvasContext();
     ctx.clearRect(0, 0, w, h);
 
+    const colors = getChartColors();
+
     const baselineRows = baselineProcessedResult ? getRowsForMetric(baselineProcessedResult, metricKey) : [];
     if (!baselineRows.length) {
-      ctx.fillStyle = 'rgba(255,255,255,0.75)';
+      ctx.fillStyle = colors.text;
       ctx.font = '16px sans-serif';
       ctx.fillText('No baseline data available.', 40, 40);
       return;
@@ -814,7 +843,7 @@
     });
 
     if (!values.length) {
-      ctx.fillStyle = 'rgba(255,255,255,0.75)';
+      ctx.fillStyle = colors.text;
       ctx.font = '16px sans-serif';
       ctx.fillText('No valid values available for this metric.', 40, 40);
       return;
@@ -831,7 +860,7 @@
       return margin.top + plotH - (v / yMax) * plotH;
     }
 
-    ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+    ctx.strokeStyle = colors.grid;
     ctx.lineWidth = 1;
     for (let i = 0; i <= 5; i++) {
       const y = margin.top + (plotH * i / 5);
@@ -845,10 +874,10 @@
     ctx.moveTo(margin.left, margin.top);
     ctx.lineTo(margin.left, h - margin.bottom);
     ctx.lineTo(w - margin.right, h - margin.bottom);
-    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    ctx.strokeStyle = colors.axis;
     ctx.stroke();
 
-    ctx.fillStyle = 'rgba(255,255,255,0.78)';
+    ctx.fillStyle = colors.text;
     ctx.font = '12px sans-serif';
     ctx.textAlign = 'right';
     ctx.textBaseline = 'middle';
@@ -862,9 +891,6 @@
     const groupCount = paired.length;
     const groupWidth = plotW / Math.max(groupCount, 1);
     const barWidth = Math.min(32, groupWidth * 0.22);
-    const baselineColor = 'rgba(255,255,255,0.45)';
-    const comparisonColor = 'rgba(255,255,255,0.88)';
-    const labelColor = 'rgba(255,255,255,0.95)';
 
     paired.forEach((p, i) => {
       const centerX = margin.left + groupWidth * i + groupWidth / 2;
@@ -872,23 +898,23 @@
       const comparisonX = centerX + 6;
 
       const labelY = h - margin.bottom + 14;
-      ctx.fillStyle = 'rgba(255,255,255,0.82)';
+      ctx.fillStyle = colors.text;
       ctx.font = '12px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
       ctx.fillText(p.phaseLabel.replace('Postural ', 'Post. '), centerX, labelY);
 
-      let baselineCenterY = null;
-      let comparisonCenterY = null;
+      let baselineTopY = null;
+      let comparisonTopY = null;
 
       if (p.baseline != null) {
         const y = yFor(p.baseline);
         const height = h - margin.bottom - y;
-        ctx.fillStyle = baselineColor;
+        ctx.fillStyle = colors.baselineBar;
         ctx.fillRect(baselineX, y, barWidth, height);
 
-        baselineCenterY = y;
-        ctx.fillStyle = labelColor;
+        baselineTopY = y;
+        ctx.fillStyle = colors.label;
         ctx.font = '12px sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'bottom';
@@ -898,23 +924,23 @@
       if (p.comparison != null) {
         const y = yFor(p.comparison);
         const height = h - margin.bottom - y;
-        ctx.fillStyle = comparisonColor;
+        ctx.fillStyle = colors.comparisonBar;
         ctx.fillRect(comparisonX, y, barWidth, height);
 
-        comparisonCenterY = y;
-        ctx.fillStyle = labelColor;
+        comparisonTopY = y;
+        ctx.fillStyle = colors.label;
         ctx.font = '12px sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'bottom';
         ctx.fillText(p.comparison.toFixed(digits), comparisonX + barWidth / 2, y - 6);
       }
 
-      if (baselineCenterY != null && comparisonCenterY != null) {
+      if (baselineTopY != null && comparisonTopY != null) {
         const xMid = centerX;
-        const yTop = Math.min(baselineCenterY, comparisonCenterY);
-        const yBottom = Math.max(baselineCenterY, comparisonCenterY);
+        const yTop = Math.min(baselineTopY, comparisonTopY);
+        const yBottom = Math.max(baselineTopY, comparisonTopY);
 
-        ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+        ctx.strokeStyle = colors.deltaLine;
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.moveTo(xMid, yTop);
@@ -930,7 +956,7 @@
 
         const delta = p.comparison - p.baseline;
         const yText = yTop - 8;
-        ctx.fillStyle = 'rgba(255,255,255,0.96)';
+        ctx.fillStyle = colors.deltaLine;
         ctx.font = '12px sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'bottom';
