@@ -335,51 +335,63 @@ async function waitBetweenConditions(condition_number) {
 }
 
   async function posturalBalanceTask() {
-    await waitForSpaceWithLines([
-      "Postural Balance Task Instructions:",
-      "You will complete three 30-second standing trials, all with eyes closed.",
-      "1. Both feet on the ground",
-      "2. Standing on your LEFT leg",
-      "3. Standing on your RIGHT leg",
-      "",
-      "Please stand as still as possible during each trial.",
-      "Press SPACE to start the first trial."
-    ], "INSTRUCTIONS_POSTURAL");
+  await waitForSpaceWithLines([
+    "Postural Balance Task Instructions:",
+    "You will complete three 30-second standing trials, all with eyes closed.",
+    "1. Both feet on the ground",
+    "2. Standing on your LEFT leg",
+    "3. Standing on your RIGHT leg",
+    "",
+    "Please stand as still as possible during each trial.",
+    "Press SPACE to start the first trial."
+  ], "INSTRUCTIONS_POSTURAL");
 
-    setText("Postural Balance Task Starting");
-    await countdown(cfg.startBannerMs ?? 2000, "Postural");
+  setText("Postural Balance Task Starting");
+  await countdown(cfg.startBannerMs ?? 2000, "Postural");
 
-    post("phaseStart", { phase: "Postural" });
-    post("marker", { marker: "PHASE_START_POSTURAL" });
+  const trialMs = cfg.posturalTrialMs ?? 30000;
 
-    const trialMs = cfg.posturalTrialMs ?? 30000;
-
-    const conditions = [
-      "Eyes Closed (Both Feet)",
-      "Eyes Closed (Left Leg)",
-      "Eyes Closed (Right Leg)"
-    ];
-
-    for (let i = 0; i < conditions.length; i++) {
-      if (abort) throw new Error("Aborted");
-
-      const condition = conditions[i];
-      setText(condition);
-
-      post("marker", { marker: `Postural_${condition.replaceAll(" ", "_")}` });
-
-      await countdown(trialMs, `Postural ${i + 1}/3`);
-
-      if (i < conditions.length - 1) {
-        await waitBetweenConditions(i + 1);
-      }
+  const conditions = [
+    {
+      phase: "PosturalBoth",
+      label: "Eyes Closed (Both Feet)",
+      marker: "Postural_Both_Feet"
+    },
+    {
+      phase: "PosturalLeft",
+      label: "Eyes Closed (Left Leg)",
+      marker: "Postural_Left_Leg"
+    },
+    {
+      phase: "PosturalRight",
+      label: "Eyes Closed (Right Leg)",
+      marker: "Postural_Right_Leg"
     }
+  ];
 
-    post("marker", { marker: "PHASE_END_POSTURAL" });
-    post("phaseEnd", { phase: "Postural" });
+  for (let i = 0; i < conditions.length; i++) {
+    if (abort) throw new Error("Aborted");
 
-    await waitBetweenConditions(3);
+    const condition = conditions[i];
+
+    post("phaseStart", { phase: condition.phase });
+    post("marker", { marker: `PHASE_START_${condition.phase.toUpperCase()}` });
+
+    setText(condition.label);
+    post("marker", { marker: condition.marker });
+
+    await countdown(trialMs, `Postural ${i + 1}/3`);
+
+    post("marker", { marker: `PHASE_END_${condition.phase.toUpperCase()}` });
+    post("phaseEnd", { phase: condition.phase });
+
+    if (i < conditions.length - 1) {
+      await waitBetweenConditions(i + 1);
+    }
   }
+
+  await waitBetweenConditions(3);
+}
 
   async function runAll() {
     try {
