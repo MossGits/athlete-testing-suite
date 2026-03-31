@@ -36,6 +36,145 @@
     }
     .modalFooter .pill{ margin-left:auto; }
     .hidden{ display:none !important; }
+
+    .trainerLayout{
+      display:grid;
+      grid-template-columns: minmax(320px, 1fr) minmax(420px, 1.15fr);
+      gap:1rem;
+      margin-top:1rem;
+      align-items:start;
+    }
+
+    .stack{
+      display:flex;
+      flex-direction:column;
+      gap:1rem;
+    }
+
+    .panelCard{
+      border:1px solid rgba(255,255,255,.08);
+      border-radius:14px;
+      padding:1rem;
+      background:rgba(255,255,255,.02);
+    }
+
+    .panelCard h3{
+      margin-top:0;
+    }
+
+    .toolbarRow{
+      display:flex;
+      gap:.5rem;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+
+    .selectedAthleteHeader{
+      display:flex;
+      gap:.75rem;
+      align-items:center;
+      justify-content:space-between;
+      flex-wrap:wrap;
+    }
+
+    .resultsShell{
+      display:flex;
+      flex-direction:column;
+      gap:1rem;
+    }
+
+    .chartWrap{
+      border:1px solid rgba(255,255,255,.08);
+      border-radius:12px;
+      padding:.75rem;
+      background:rgba(255,255,255,.02);
+    }
+
+    .chartControls{
+      display:flex;
+      gap:.75rem;
+      align-items:center;
+      flex-wrap:wrap;
+      margin-bottom:.75rem;
+    }
+
+    .chartControls label{
+      font-size:.95rem;
+    }
+
+    .chartControls select{
+      background:rgba(255,255,255,.05);
+      color:inherit;
+      border:1px solid rgba(255,255,255,.15);
+      border-radius:8px;
+      padding:.35rem .55rem;
+    }
+
+    .metricChart{
+      width:100%;
+      height:320px;
+      display:block;
+      border-radius:10px;
+      background:rgba(255,255,255,.02);
+    }
+
+    .tableWrap{
+      overflow:auto;
+      border:1px solid rgba(255,255,255,.08);
+      border-radius:12px;
+      background:rgba(255,255,255,.02);
+    }
+
+    .resultsTable{
+      width:100%;
+      border-collapse:collapse;
+      min-width:640px;
+    }
+
+    .resultsTable th,
+    .resultsTable td{
+      padding:.7rem .8rem;
+      border-bottom:1px solid rgba(255,255,255,.08);
+      text-align:left;
+      vertical-align:top;
+    }
+
+    .resultsTable th{
+      font-weight:600;
+      background:rgba(255,255,255,.04);
+    }
+
+    .resultsTable tr:last-child td{
+      border-bottom:none;
+    }
+
+    .mutedBox{
+      border:1px dashed rgba(255,255,255,.18);
+      border-radius:12px;
+      padding:1rem;
+      color:inherit;
+      background:rgba(255,255,255,.02);
+    }
+
+    .testRow{
+      display:flex;
+      gap:.5rem;
+      align-items:center;
+      margin-bottom:.5rem;
+      flex-wrap:wrap;
+    }
+
+    .testRow .primaryBtn{
+      flex:1;
+      display:flex;
+      justify-content:space-between;
+    }
+
+    @media (max-width: 1100px){
+      .trainerLayout{
+        grid-template-columns: 1fr;
+      }
+    }
   </style>
 </head>
 
@@ -49,7 +188,6 @@
     <button class="btn ghost" onclick="logout()">Logout</button>
   </div>
 
-  <!-- Only used for errors / notices. -->
   <div id="msg" class="msg" style="margin-bottom: .75rem;"></div>
 
   <!-- ATHLETE VIEW -->
@@ -76,49 +214,104 @@
   <div id="trainerView" class="card" hidden>
     <h2>Trainer Dashboard</h2>
     <p class="note" style="margin-top:.25rem;">
-      Select an athlete to view their past tests and run a baseline or active diagnostic session.
+      Select an athlete to view past tests, run a diagnostic session, and review post-processed results.
     </p>
 
-    <div class="grid two" style="margin-top: 1rem;">
-      <!-- Athlete list -->
-      <div>
-        <h3 style="margin-top:0;">Athletes</h3>
-        <div id="athletesEmpty" class="note" hidden>No athletes found for your organization.</div>
-        <div id="athletesList" class="list"></div>
-      </div>
+    <div class="trainerLayout">
+      <!-- LEFT COLUMN -->
+      <div class="stack">
+        <div id="athletesPanel" class="panelCard">
+          <h3 style="margin-top:0;">Athletes</h3>
+          <div id="athletesEmpty" class="note" hidden>No athletes found for your organization.</div>
+          <div id="athletesList" class="list"></div>
+        </div>
 
-      <!-- Athlete detail -->
-      <div>
-        <h3 style="margin-top:0;">Selected Athlete</h3>
-        <div id="selectedAthleteCard" class="note">Select an athlete to begin.</div>
-
-        <div style="margin-top: 1rem;">
-          <h3>Run Diagnostic Session</h3>
-          <div class="note" style="margin-bottom:.5rem;">
-            Select an athlete, then open a Baseline or Active test window. Muse connection happens inside the test window.
+        <div id="resultsPanel" class="panelCard" hidden>
+          <div class="selectedAthleteHeader">
+            <h3 style="margin:0;">Processed Results</h3>
+            <button id="btnChangeAthleteLeft" class="btn ghost" onclick="clearSelectedAthlete()">Change Athlete</button>
           </div>
 
-          <div id="testTypeRow" style="display:flex; gap:.5rem; flex-wrap:wrap; align-items:center;">
-            <button id="btnRunBaseline" class="btn" onclick="openTestModal('baseline')" disabled>Run Baseline</button>
-            <button id="btnRunActive" class="btn" onclick="openTestModal('active')" disabled>Run Active</button>
-            <span id="testTypeHint" class="note" style="margin-left:auto;">
-              Select an athlete to enable.
-            </span>
+          <div id="resultsShell" class="resultsShell" style="margin-top:1rem;">
+            <div id="resultsEmptyState" class="mutedBox">
+              Select a completed test to view its processed features.
+            </div>
+
+            <div id="resultsContent" hidden>
+              <div class="chartWrap">
+                <div class="chartControls">
+                  <label for="metricSelect">Metric</label>
+                  <select id="metricSelect">
+                    <option value="meanHr">Mean HR</option>
+                    <option value="stdHr">STD HR</option>
+                    <option value="sdnn">SDNN</option>
+                    <option value="rmssd">RMSSD</option>
+                  </select>
+                  <span id="resultsTitle" class="pill">No test selected</span>
+                </div>
+
+                <canvas id="metricChart" class="metricChart" width="900" height="320"></canvas>
+              </div>
+
+              <div class="tableWrap">
+                <table class="resultsTable">
+                  <thead>
+                    <tr>
+                      <th>Phase</th>
+                      <th>Status</th>
+                      <th>Detected Peaks</th>
+                      <th>Mean HR</th>
+                      <th>STD HR</th>
+                      <th>SDNN</th>
+                      <th>RMSSD</th>
+                    </tr>
+                  </thead>
+                  <tbody id="resultsTableBody"></tbody>
+                </table>
+              </div>
+
+              <div id="resultsNote" class="note"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT COLUMN -->
+      <div class="stack">
+        <div class="panelCard">
+          <div class="selectedAthleteHeader">
+            <h3 style="margin:0;">Selected Athlete</h3>
+            <button id="btnChangeAthlete" class="btn ghost" onclick="clearSelectedAthlete()" hidden>Change Athlete</button>
+          </div>
+
+          <div id="selectedAthleteCard" class="note" style="margin-top:.75rem;">Select an athlete to begin.</div>
+
+          <div style="margin-top: 1rem;">
+            <h3>Run Diagnostic Session</h3>
+            <div class="note" style="margin-bottom:.5rem;">
+              Select an athlete, then open a Baseline or Active test window. Muse connection happens inside the test window.
+            </div>
+
+            <div id="testTypeRow" class="toolbarRow">
+              <button id="btnRunBaseline" class="btn" onclick="openTestModal('baseline')" disabled>Run Baseline</button>
+              <button id="btnRunActive" class="btn" onclick="openTestModal('active')" disabled>Run Active</button>
+              <span id="testTypeHint" class="note" style="margin-left:auto;">
+                Select an athlete to enable.
+              </span>
+            </div>
           </div>
         </div>
 
-        <div style="margin-top: 1.25rem;">
+        <div class="panelCard">
           <h3>Past Diagnostic Tests</h3>
           <div id="trainerTestsEmpty" class="note">Select an athlete to load tests.</div>
           <div id="trainerTestsList" class="list"></div>
-          <pre id="trainerTestDetail" class="note" style="white-space: pre-wrap; margin-top:.75rem;" hidden></pre>
         </div>
       </div>
     </div>
   </div>
 </div>
 
-<!-- Modal (hidden by default) -->
 <div id="testModal" class="modalOverlay hidden" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
   <div class="modalCard">
     <div class="modalHeader">
@@ -152,11 +345,20 @@
 <script>
   let me = null;
   let selectedAthlete = null;
+  let selectedProcessedResult = null;
+  let selectedTestMeta = null;
 
-  // Modal / session state
+  const PHASE_LABELS = {
+    PPG_GONOGO: 'Go / No-Go',
+    PPG_ONEBACK: '1-Back',
+    PPG_POSTURALBOTH: 'Postural Both',
+    PPG_POSTURALLEFT: 'Postural Left',
+    PPG_POSTURALRIGHT: 'Postural Right'
+  };
+
   let activeModal = {
     open: false,
-    type: null,         // 'baseline' | 'active'
+    type: null,
     running: false,
   };
 
@@ -206,73 +408,19 @@
     return { ok: res.ok, status: res.status, text, data };
   }
 
-  function buildTrainerSessionSummary(test) {
-    const mode = String(test.mode || 'UNKNOWN').toUpperCase();
-    const status = String(test.status || '—');
-    const sessionId = test.sessionId || test.id || '(unknown)';
-
-    return (
-      `Session: ${sessionId}\n` +
-      `Type: ${mode}\n` +
-      `Status: ${status}\n` +
-      `Created: ${fmtDateTime(test.createdAt)}\n` +
-      (test.startedAt ? `Started: ${fmtDateTime(test.startedAt)}\n` : '') +
-      (test.endedAt ? `Ended: ${fmtDateTime(test.endedAt)}\n` : '')
-    );
+  function normalizedRoleString(me) {
+    const raw =
+      me?.role ??
+      me?.roles ??
+      me?.authorities ??
+      me?.authority ??
+      '';
+    if (Array.isArray(raw)) return raw.map(x => String(x)).join(' ').toUpperCase();
+    return String(raw).toUpperCase();
   }
 
-  async function processSessionFeatures(sessionId, summaryText) {
-    const detailEl = document.getElementById('trainerTestDetail');
-    detailEl.hidden = false;
-    detailEl.textContent =
-      `${summaryText}\n` +
-      `\nProcessing features...\n`;
-
-    const r = await postJson(`/api/sessions/${encodeURIComponent(sessionId)}/process-features`, null);
-
-    if (!r.ok) {
-      detailEl.textContent =
-        `${summaryText}\n` +
-        `\nFeature processing failed (HTTP ${r.status}).\n` +
-        `${r.text || '(No error body returned.)'}`;
-      return;
-    }
-
-    detailEl.textContent =
-      `${summaryText}\n` +
-      `\nProcessed Features\n` +
-      `${JSON.stringify(r.data, null, 2)}`;
-  }
-
-  async function loadProcessedFeatures(sessionId, summaryText) {
-    const detailEl = document.getElementById('trainerTestDetail');
-    detailEl.hidden = false;
-    detailEl.textContent =
-      `${summaryText}\n` +
-      `\nLoading processed features...\n`;
-
-    const r = await fetchJson(`/api/sessions/${encodeURIComponent(sessionId)}/processed-features`);
-
-    if (r.status === 404) {
-      detailEl.textContent =
-        `${summaryText}\n` +
-        `\nNo processed features found yet for this session.\n` +
-        `Use the "Process" button first.`;
-      return;
-    }
-
-    if (!r.ok) {
-      detailEl.textContent =
-        `${summaryText}\n` +
-        `\nUnable to load processed features (HTTP ${r.status}).\n` +
-        `${r.text || '(No error body returned.)'}`;
-      return;
-    }
-
-    detailEl.textContent =
-      `${summaryText}\n` +
-      `\nProcessed Features\n` +
-      `${JSON.stringify(r.data, null, 2)}`;
+  function hasRole(me, token) {
+    return normalizedRoleString(me).includes(token.toUpperCase());
   }
 
   function updateTrainerButtons() {
@@ -290,7 +438,6 @@
       else hint.textContent = 'Ready — Muse will connect in the test window.';
     }
 
-    // Modal buttons (disabled since popup handles tests now)
     const mStart = document.getElementById('modalBtnStart');
     const mSave = document.getElementById('modalBtnSave');
     const mDiscard = document.getElementById('modalBtnDiscard');
@@ -299,7 +446,30 @@
     if (mDiscard) mDiscard.disabled = true;
   }
 
-  // Test window logic (creates a session, then opens baselinetest.html / activetest.html popup)
+  function updateAthletePanels() {
+    const athletesPanel = document.getElementById('athletesPanel');
+    const resultsPanel = document.getElementById('resultsPanel');
+    const btnChangeAthlete = document.getElementById('btnChangeAthlete');
+
+    if (selectedAthlete) {
+      athletesPanel.hidden = true;
+      resultsPanel.hidden = false;
+      btnChangeAthlete.hidden = false;
+    } else {
+      athletesPanel.hidden = false;
+      resultsPanel.hidden = true;
+      btnChangeAthlete.hidden = true;
+      resetResultsView('Select an athlete, then choose a completed test to view its processed features.');
+    }
+  }
+
+  function setModalStatus(pillText, debugText) {
+    const pill = document.getElementById('modalStatus');
+    const dbg = document.getElementById('modalDebug');
+    if (pill) pill.textContent = pillText;
+    if (dbg) dbg.textContent = debugText || `Status: ${pillText}`;
+  }
+
   async function openTestModal(type) {
     if (!selectedAthlete) {
       setMsg('Select an athlete first.', 'warn');
@@ -364,51 +534,293 @@
     updateTrainerButtons();
   }
 
-  function setModalStatus(pillText, debugText) {
-    const pill = document.getElementById('modalStatus');
-    const dbg = document.getElementById('modalDebug');
-    if (pill) pill.textContent = pillText;
-    if (dbg) dbg.textContent = debugText || `Status: ${pillText}`;
-  }
-
-  // Placeholder modal functions
   async function modalStart() {
     setModalStatus('Disabled', 'Status: Disabled\nUse the Baseline/Active test window to run the test.');
   }
+
   async function modalSave() {
     setModalStatus('Disabled', 'Status: Disabled\nUse the Baseline/Active test window to run the test.');
   }
+
   async function modalDiscard() {
     setModalStatus('Disabled', 'Status: Disabled\nUse the Baseline/Active test window to run the test.');
   }
 
-  // Close modal if user clicks overlay background
   document.addEventListener('click', (e) => {
     const modal = document.getElementById('testModal');
     if (!modal || modal.classList.contains('hidden')) return;
     if (e.target === modal) closeTestModal();
   });
 
-  // ESC closes modal
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
     const modal = document.getElementById('testModal');
     if (modal && !modal.classList.contains('hidden')) closeTestModal();
   });
 
-  function normalizedRoleString(me) {
-    const raw =
-      me?.role ??
-      me?.roles ??
-      me?.authorities ??
-      me?.authority ??
-      '';
-    if (Array.isArray(raw)) return raw.map(x => String(x)).join(' ').toUpperCase();
-    return String(raw).toUpperCase();
+  function buildTrainerSessionTitle(test) {
+    const mode = String(test.mode || 'UNKNOWN').toUpperCase();
+    const when = fmtDateTime(test.createdAt || test.startedAt || test.dateTime);
+    return `${mode} • ${when}`;
   }
 
-  function hasRole(me, token) {
-    return normalizedRoleString(me).includes(token.toUpperCase());
+  function phaseOrder() {
+    return [
+      'PPG_GONOGO',
+      'PPG_ONEBACK',
+      'PPG_POSTURALBOTH',
+      'PPG_POSTURALLEFT',
+      'PPG_POSTURALRIGHT'
+    ];
+  }
+
+  function numericOrDash(value, digits = 3) {
+    if (typeof value !== 'number' || !Number.isFinite(value)) return '—';
+    return value.toFixed(digits);
+  }
+
+  function resetResultsView(message) {
+    selectedProcessedResult = null;
+    selectedTestMeta = null;
+
+    const emptyEl = document.getElementById('resultsEmptyState');
+    const contentEl = document.getElementById('resultsContent');
+    const tableBody = document.getElementById('resultsTableBody');
+    const noteEl = document.getElementById('resultsNote');
+    const titleEl = document.getElementById('resultsTitle');
+
+    emptyEl.hidden = false;
+    emptyEl.textContent = message || 'No processed features to display.';
+    contentEl.hidden = true;
+    tableBody.innerHTML = '';
+    noteEl.textContent = '';
+    titleEl.textContent = 'No test selected';
+
+    clearChart();
+  }
+
+  function clearChart() {
+    const canvas = document.getElementById('metricChart');
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+
+  function buildRowsFromProcessed(data) {
+    const features = data?.ppgFeatures || {};
+    return phaseOrder().map(kind => {
+      const raw = features[kind] || {};
+      return {
+        key: kind,
+        phaseLabel: PHASE_LABELS[kind] || kind,
+        status: raw.status || 'missing',
+        detectedPeaks: raw.detectedPeaks,
+        meanHr: raw.meanHr,
+        stdHr: raw.stdHr,
+        sdnn: raw.sdnn,
+        rmssd: raw.rmssd,
+        message: raw.message || ''
+      };
+    });
+  }
+
+  function renderResultsTable(rows) {
+    const tableBody = document.getElementById('resultsTableBody');
+    tableBody.innerHTML = '';
+
+    rows.forEach(row => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${row.phaseLabel}</td>
+        <td>${row.status}</td>
+        <td>${row.detectedPeaks ?? '—'}</td>
+        <td>${numericOrDash(row.meanHr, 2)}</td>
+        <td>${numericOrDash(row.stdHr, 2)}</td>
+        <td>${numericOrDash(row.sdnn, 4)}</td>
+        <td>${numericOrDash(row.rmssd, 4)}</td>
+      `;
+      tableBody.appendChild(tr);
+    });
+  }
+
+  function drawMetricChart(rows, metricKey) {
+    const canvas = document.getElementById('metricChart');
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width;
+    const h = canvas.height;
+
+    ctx.clearRect(0, 0, w, h);
+
+    const margin = { top: 24, right: 28, bottom: 64, left: 64 };
+    const plotW = w - margin.left - margin.right;
+    const plotH = h - margin.top - margin.bottom;
+
+    const validRows = rows.filter(r => typeof r[metricKey] === 'number' && Number.isFinite(r[metricKey]));
+    const labels = rows.map(r => r.phaseLabel);
+    const values = rows.map(r => (typeof r[metricKey] === 'number' && Number.isFinite(r[metricKey])) ? r[metricKey] : null);
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+    ctx.lineWidth = 1;
+
+    for (let i = 0; i <= 4; i++) {
+      const y = margin.top + (plotH * i / 4);
+      ctx.beginPath();
+      ctx.moveTo(margin.left, y);
+      ctx.lineTo(w - margin.right, y);
+      ctx.stroke();
+    }
+
+    ctx.beginPath();
+    ctx.moveTo(margin.left, margin.top);
+    ctx.lineTo(margin.left, h - margin.bottom);
+    ctx.lineTo(w - margin.right, h - margin.bottom);
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    ctx.stroke();
+
+    if (validRows.length === 0) {
+      ctx.fillStyle = 'rgba(255,255,255,0.75)';
+      ctx.font = '16px sans-serif';
+      ctx.fillText('No valid values available for this metric.', margin.left + 10, margin.top + 30);
+      return;
+    }
+
+    const minVal = Math.min(...validRows.map(r => r[metricKey]));
+    const maxVal = Math.max(...validRows.map(r => r[metricKey]));
+    const pad = (maxVal - minVal) === 0 ? Math.max(1, Math.abs(maxVal) * 0.15 || 1) : (maxVal - minVal) * 0.15;
+    const yMin = minVal - pad;
+    const yMax = maxVal + pad;
+
+    function xFor(i) {
+      if (labels.length === 1) return margin.left + plotW / 2;
+      return margin.left + (plotW * i / (labels.length - 1));
+    }
+
+    function yFor(v) {
+      return margin.top + plotH - ((v - yMin) / (yMax - yMin)) * plotH;
+    }
+
+    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    ctx.font = '12px sans-serif';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    for (let i = 0; i <= 4; i++) {
+      const frac = i / 4;
+      const v = yMax - (yMax - yMin) * frac;
+      const y = margin.top + plotH * frac;
+      ctx.fillText(v.toFixed(2), margin.left - 8, y);
+    }
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    labels.forEach((label, i) => {
+      const x = xFor(i);
+      const y = h - margin.bottom + 10;
+      ctx.fillStyle = 'rgba(255,255,255,0.78)';
+      const shortLabel = label.replace('Postural ', 'Post. ');
+      ctx.fillText(shortLabel, x, y);
+    });
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    let started = false;
+    values.forEach((v, i) => {
+      if (v == null) return;
+      const x = xFor(i);
+      const y = yFor(v);
+      if (!started) {
+        ctx.moveTo(x, y);
+        started = true;
+      } else {
+        ctx.lineTo(x, y);
+      }
+    });
+    ctx.stroke();
+
+    values.forEach((v, i) => {
+      const x = xFor(i);
+      if (v == null) {
+        ctx.fillStyle = 'rgba(255,255,255,0.25)';
+        ctx.beginPath();
+        ctx.arc(x, h - margin.bottom, 4, 0, Math.PI * 2);
+        ctx.fill();
+        return;
+      }
+
+      const y = yFor(v);
+      ctx.fillStyle = 'rgba(255,255,255,0.95)';
+      ctx.beginPath();
+      ctx.arc(x, y, 5, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      ctx.font = '12px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(v.toFixed(2), x, y - 8);
+    });
+  }
+
+  function renderProcessedResults(data, test) {
+    selectedProcessedResult = data;
+    selectedTestMeta = test;
+
+    const emptyEl = document.getElementById('resultsEmptyState');
+    const contentEl = document.getElementById('resultsContent');
+    const noteEl = document.getElementById('resultsNote');
+    const titleEl = document.getElementById('resultsTitle');
+    const metricSelect = document.getElementById('metricSelect');
+
+    const rows = buildRowsFromProcessed(data);
+
+    emptyEl.hidden = true;
+    contentEl.hidden = false;
+    titleEl.textContent = buildTrainerSessionTitle(test);
+    renderResultsTable(rows);
+    drawMetricChart(rows, metricSelect.value);
+
+    const okCount = rows.filter(r => r.status === 'ok').length;
+    noteEl.textContent = okCount > 0
+      ? `Showing processed PPG features for ${okCount} phase(s).`
+      : 'No successful processed PPG phases were found for this session.';
+  }
+
+  async function loadProcessedFeatures(sessionId, test) {
+    const r = await fetchJson(`/api/sessions/${encodeURIComponent(sessionId)}/processed-features`);
+
+    if (r.status === 404) {
+      resetResultsView('No processed features found yet for this session. Use Process first.');
+      return false;
+    }
+
+    if (!r.ok) {
+      resetResultsView(`Unable to load processed features (HTTP ${r.status}).`);
+      return false;
+    }
+
+    renderProcessedResults(r.data, test);
+    return true;
+  }
+
+  async function processSessionFeatures(sessionId, test) {
+    resetResultsView('Processing features...');
+    const r = await postJson(`/api/sessions/${encodeURIComponent(sessionId)}/process-features`, null);
+
+    if (!r.ok) {
+      resetResultsView(`Feature processing failed (HTTP ${r.status}).`);
+      return false;
+    }
+
+    renderProcessedResults(r.data, test);
+    return true;
+  }
+
+  function showTrainerTestDetail(test) {
+    const sessionId = test.sessionId || test.id || '';
+    if (!sessionId) {
+      resetResultsView('This test is missing a valid session ID.');
+      return;
+    }
+    loadProcessedFeatures(sessionId, test);
   }
 
   async function init() {
@@ -442,8 +854,16 @@
       trainerEl.hidden = false;
       athleteEl.remove();
       await loadTrainerAthletes();
-
+      updateAthletePanels();
       updateTrainerButtons();
+
+      const metricSelect = document.getElementById('metricSelect');
+      metricSelect.addEventListener('change', () => {
+        if (!selectedProcessedResult) return;
+        const rows = buildRowsFromProcessed(selectedProcessedResult);
+        drawMetricChart(rows, metricSelect.value);
+      });
+
       return;
     }
 
@@ -561,18 +981,28 @@
 
     if (activeModal.open) closeTestModal(true);
 
+    updateAthletePanels();
     updateTrainerButtons();
+    resetResultsView('Select a completed test to view its processed features.');
     await loadTrainerTestsForSelectedAthlete();
   }
 
-  // Past Diagnostic Tests: completed only + Process + Features + Download + Delete
+  function clearSelectedAthlete() {
+    selectedAthlete = null;
+    document.getElementById('selectedAthleteCard').className = 'note';
+    document.getElementById('selectedAthleteCard').textContent = 'Select an athlete to begin.';
+    document.getElementById('trainerTestsList').innerHTML = '';
+    document.getElementById('trainerTestsEmpty').hidden = false;
+    document.getElementById('trainerTestsEmpty').textContent = 'Select an athlete to load tests.';
+    updateAthletePanels();
+    updateTrainerButtons();
+  }
+
   async function loadTrainerTestsForSelectedAthlete() {
     const listEl = document.getElementById('trainerTestsList');
     const emptyEl = document.getElementById('trainerTestsEmpty');
-    const detailEl = document.getElementById('trainerTestDetail');
 
     listEl.innerHTML = '';
-    detailEl.hidden = true;
 
     if (!selectedAthlete) {
       emptyEl.hidden = false;
@@ -620,17 +1050,10 @@
       const status = String(t.status || '—');
 
       const row = document.createElement('div');
-      row.style.display = 'flex';
-      row.style.gap = '.5rem';
-      row.style.alignItems = 'center';
-      row.style.marginBottom = '.5rem';
-      row.style.flexWrap = 'wrap';
+      row.className = 'testRow';
 
       const btn = document.createElement('button');
-      btn.className = 'btn ghost';
-      btn.style.flex = '1';
-      btn.style.display = 'flex';
-      btn.style.justifyContent = 'space-between';
+      btn.className = 'btn ghost primaryBtn';
       btn.innerHTML = `<span>${mode} — ${when}</span><span class="pill">${status}</span>`;
       btn.onclick = () => showTrainerTestDetail({ ...t, sessionId });
 
@@ -641,12 +1064,7 @@
       processBtn.onclick = async (ev) => {
         ev.stopPropagation();
         if (!sessionId) return;
-
-        const summaryText =
-          buildTrainerSessionSummary({ ...t, sessionId }) +
-          `\nDownload:\n/api/sessions/${sessionId}/files.zip`;
-
-        await processSessionFeatures(sessionId, summaryText);
+        await processSessionFeatures(sessionId, { ...t, sessionId });
       };
 
       const featuresBtn = document.createElement('button');
@@ -656,12 +1074,7 @@
       featuresBtn.onclick = async (ev) => {
         ev.stopPropagation();
         if (!sessionId) return;
-
-        const summaryText =
-          buildTrainerSessionSummary({ ...t, sessionId }) +
-          `\nDownload:\n/api/sessions/${sessionId}/files.zip`;
-
-        await loadProcessedFeatures(sessionId, summaryText);
+        await loadProcessedFeatures(sessionId, { ...t, sessionId });
       };
 
       const dl = document.createElement('button');
@@ -698,6 +1111,10 @@
           return;
         }
 
+        if (selectedTestMeta && (selectedTestMeta.sessionId || selectedTestMeta.id) === sessionId) {
+          resetResultsView('Select a completed test to view its processed features.');
+        }
+
         await loadTrainerTestsForSelectedAthlete();
       };
 
@@ -708,19 +1125,6 @@
       row.appendChild(del);
       listEl.appendChild(row);
     });
-  }
-
-  function showTrainerTestDetail(test) {
-    const el = document.getElementById('trainerTestDetail');
-    const sessionId = test.sessionId || test.id || '(unknown)';
-
-    el.hidden = false;
-    el.textContent =
-      buildTrainerSessionSummary(test) +
-      `\nDownload:\n` +
-      `/api/sessions/${sessionId}/files.zip\n` +
-      `\n(Raw payload)\n` +
-      JSON.stringify(test, null, 2);
   }
 
   async function logout() {
