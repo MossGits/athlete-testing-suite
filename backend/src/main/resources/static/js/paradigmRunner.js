@@ -31,43 +31,33 @@
   let abort = false;
   let hasConfigFromController = false;
 
- function post(type, payload = {}) {
-  const msg = { source: "PARADIGM", type, payload };
+  function post(type, payload = {}) {
+    const msg = { source: "PARADIGM", type, payload };
 
-  // Prefer BroadcastChannel; don't double-send.
-  if (bc) {
-    try { bc.postMessage(msg); } catch {}
-    return;
-  }
-
-  // Fallback: opener only if no BC
-  if (window.opener) {
-    try { window.opener.postMessage(msg, "*"); } catch {}
-  }
-}
-
-    // 1) BroadcastChannel (best)
+    // 1) BroadcastChannel
     if (bc) {
       try { bc.postMessage(msg); } catch {}
     }
 
-    // 2) window.opener (fallback)
+    // 2) window.opener fallback
     if (window.opener) {
       try { window.opener.postMessage(msg, "*"); } catch {}
     }
 
-    // 3) localStorage (robust same-origin fallback)
+    // 3) localStorage fallback
     try {
       localStorage.setItem(storageKey, JSON.stringify({ ts: Date.now(), ...msg }));
     } catch {}
   }
 
-  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+  function sleep(ms) {
+    return new Promise(r => setTimeout(r, ms));
+  }
 
   function msToClock(ms) {
     const s = Math.max(0, Math.floor(ms / 1000));
-    const mm = String(Math.floor(s / 60)).padStart(2, '0');
-    const ss = String(s % 60).padStart(2, '0');
+    const mm = String(Math.floor(s / 60)).padStart(2, "0");
+    const ss = String(s % 60).padStart(2, "0");
     return `${mm}:${ss}`;
   }
 
@@ -111,10 +101,21 @@
   function waitForSpace() {
     return new Promise((resolve, reject) => {
       const onKey = (e) => {
-        if (abort) { cleanup(); reject(new Error("Aborted")); return; }
-        if (e.code === "Space" || e.key === " ") { cleanup(); resolve(); }
+        if (abort) {
+          cleanup();
+          reject(new Error("Aborted"));
+          return;
+        }
+        if (e.code === "Space" || e.key === " ") {
+          cleanup();
+          resolve();
+        }
       };
-      function cleanup() { window.removeEventListener("keydown", onKey); }
+
+      function cleanup() {
+        window.removeEventListener("keydown", onKey);
+      }
+
       window.addEventListener("keydown", onKey);
     });
   }
@@ -139,8 +140,7 @@
 
   function showLetter(letter) {
     const root = document.getElementById("root");
-    root.innerHTML =
-      `<div style="font-size:200px;font-weight:900;letter-spacing:2px">${letter}</div>`;
+    root.innerHTML = `<div style="font-size:200px;font-weight:900;letter-spacing:2px">${letter}</div>`;
   }
 
   function showBlank() {
@@ -148,10 +148,8 @@
     root.innerHTML = `<div id="stageText"></div>`;
   }
 
-  // ------------------ VERBATIM screens from experiment.py ------------------
-
   async function showWelcome() {
-    const welcome_text = [
+    const welcomeText = [
       "Welcome to the Concussion Diagnostic Test.",
       "",
       "You will complete a series of tasks designed to assess cognitive function and balance.",
@@ -162,7 +160,7 @@
       "",
       "The test will begin shortly."
     ];
-    setText(welcome_text);
+    setText(welcomeText);
     await countdown(cfg.welcomeMs ?? 15000, "Welcome");
   }
 
@@ -202,15 +200,15 @@
       if (abort) throw new Error("Aborted");
 
       const isGo = Math.random() < 0.7;
-      const stimulus_type = isGo ? "Go" : "No-Go";
+      const stimulusType = isGo ? "Go" : "No-Go";
       showSquare(isGo ? "rgb(0,150,0)" : "rgb(150,0,0)");
-      post("marker", { marker: `GoNoGo_${stimulus_type}` });
+      post("marker", { marker: `GoNoGo_${stimulusType}` });
 
       const t0 = performance.now();
       let responded = false;
       let rtMs = null;
 
-      const onKey = (e) => {
+      const onKey = () => {
         if (responded) return;
         responded = true;
         rtMs = Math.round(performance.now() - t0);
@@ -221,7 +219,7 @@
       window.removeEventListener("keydown", onKey);
 
       const correct = (isGo && responded) || (!isGo && !responded);
-      post("response", { task: "Go/No-Go", stimulus: stimulus_type, correct, rtMs });
+      post("response", { task: "Go/No-Go", stimulus: stimulusType, correct, rtMs });
 
       showBlank();
       const jitter = Math.random() * jitterMaxMs;
@@ -254,7 +252,7 @@
     const avgIsiMs = Math.round((cfg.avgIsiSec ?? 1.2) * 1000);
     const jitterMaxMs = Math.round((cfg.jitterMaxSec ?? 0.5) * 1000);
 
-    const stimuli = ["A","B","C","D","E"];
+    const stimuli = ["A", "B", "C", "D", "E"];
     let prev = null;
 
     const endAt = Date.now() + durationMs;
@@ -264,6 +262,7 @@
 
       let letter;
       let isTarget = false;
+
       if (prev && Math.random() < 0.3) {
         letter = prev;
         isTarget = true;
@@ -293,7 +292,12 @@
       window.removeEventListener("keydown", onKey);
 
       const correct = (isTarget && responded) || (!isTarget && !responded);
-      post("response", { task: "1-Back", stimulus: isTarget ? "Target" : "Non-Target", correct, rtMs });
+      post("response", {
+        task: "1-Back",
+        stimulus: isTarget ? "Target" : "Non-Target",
+        correct,
+        rtMs
+      });
 
       showBlank();
       const jitter = Math.random() * jitterMaxMs;
@@ -304,94 +308,94 @@
     post("phaseEnd", { phase: "OneBack" });
   }
 
-async function waitBetweenConditions(condition_number) {
-  let messages = [
-    "Trial 1 complete.",
-    "Prepare for Trial 2: Stand on your LEFT leg with eyes closed.",
-    "Press SPACE when you are ready."
-  ];
-  if (condition_number === 2) {
-    messages = [
-      "Trial 2 complete.",
-      "Prepare for Trial 3: Stand on your RIGHT leg with eyes closed.",
+  async function waitBetweenConditions(conditionNumber) {
+    let messages = [
+      "Trial 1 complete.",
+      "Prepare for Trial 2: Stand on your LEFT leg with eyes closed.",
       "Press SPACE when you are ready."
     ];
-  } else if (condition_number === 3) {
-    messages = [
-      "All trials complete.",
-      "Thank you for your participation."
-    ];
+
+    if (conditionNumber === 2) {
+      messages = [
+        "Trial 2 complete.",
+        "Prepare for Trial 3: Stand on your RIGHT leg with eyes closed.",
+        "Press SPACE when you are ready."
+      ];
+    } else if (conditionNumber === 3) {
+      messages = [
+        "All trials complete.",
+        "Thank you for your participation."
+      ];
+    }
+
+    setText(messages);
+
+    if (conditionNumber === 3) {
+      await sleep(2000);
+      return;
+    }
+
+    await waitForSpace();
   }
-
-  setText(messages);
-
-  // For the final screen, auto-advance after 2 seconds (no SPACE required)
-  if (condition_number === 3) {
-    await sleep(2000);
-    return;
-  }
-
-  await waitForSpace();
-}
 
   async function posturalBalanceTask() {
-  await waitForSpaceWithLines([
-    "Postural Balance Task Instructions:",
-    "You will complete three 30-second standing trials, all with eyes closed.",
-    "1. Both feet on the ground",
-    "2. Standing on your LEFT leg",
-    "3. Standing on your RIGHT leg",
-    "",
-    "Please stand as still as possible during each trial.",
-    "Press SPACE to start the first trial."
-  ], "INSTRUCTIONS_POSTURAL");
+    await waitForSpaceWithLines([
+      "Postural Balance Task Instructions:",
+      "You will complete three 30-second standing trials, all with eyes closed.",
+      "1. Both feet on the ground",
+      "2. Standing on your LEFT leg",
+      "3. Standing on your RIGHT leg",
+      "",
+      "Please stand as still as possible during each trial.",
+      "Press SPACE to start the first trial."
+    ], "INSTRUCTIONS_POSTURAL");
 
-  setText("Postural Balance Task Starting");
-  await countdown(cfg.startBannerMs ?? 2000, "Postural");
+    setText("Postural Balance Task Starting");
+    await countdown(cfg.startBannerMs ?? 2000, "Postural");
 
-  const trialMs = cfg.posturalTrialMs ?? 30000;
+    const trialMs = cfg.posturalTrialMs ?? 30000;
 
-  const conditions = [
-    {
-      phase: "PosturalBoth",
-      label: "Eyes Closed (Both Feet)",
-      marker: "Postural_Both_Feet"
-    },
-    {
-      phase: "PosturalLeft",
-      label: "Eyes Closed (Left Leg)",
-      marker: "Postural_Left_Leg"
-    },
-    {
-      phase: "PosturalRight",
-      label: "Eyes Closed (Right Leg)",
-      marker: "Postural_Right_Leg"
+    const conditions = [
+      {
+        phase: "PosturalBoth",
+        label: "Eyes Closed (Both Feet)",
+        marker: "Postural_Both_Feet"
+      },
+      {
+        phase: "PosturalLeft",
+        label: "Eyes Closed (Left Leg)",
+        marker: "Postural_Left_Leg"
+      },
+      {
+        phase: "PosturalRight",
+        label: "Eyes Closed (Right Leg)",
+        marker: "Postural_Right_Leg"
+      }
+    ];
+
+    for (let i = 0; i < conditions.length; i++) {
+      if (abort) throw new Error("Aborted");
+
+      const condition = conditions[i];
+
+      post("phaseStart", { phase: condition.phase });
+      post("marker", { marker: `PHASE_START_${condition.phase.toUpperCase()}` });
+
+      setText(condition.label);
+      post("marker", { marker: condition.marker });
+
+      await countdown(trialMs, `Postural ${i + 1}/3`);
+
+      post("marker", { marker: `PHASE_END_${condition.phase.toUpperCase()}` });
+      post("phaseEnd", { phase: condition.phase });
+
+      if (i < conditions.length - 1) {
+        await waitBetweenConditions(i + 1);
+      }
     }
-  ];
 
-  for (let i = 0; i < conditions.length; i++) {
-    if (abort) throw new Error("Aborted");
-
-    const condition = conditions[i];
-
-    post("phaseStart", { phase: condition.phase });
-    post("marker", { marker: `PHASE_START_${condition.phase.toUpperCase()}` });
-
-    setText(condition.label);
-    post("marker", { marker: condition.marker });
-
-    await countdown(trialMs, `Postural ${i + 1}/3`);
-
-    post("marker", { marker: `PHASE_END_${condition.phase.toUpperCase()}` });
-    post("phaseEnd", { phase: condition.phase });
-
-    if (i < conditions.length - 1) {
-      await waitBetweenConditions(i + 1);
-    }
+    await waitBetweenConditions(3);
   }
-
-  await waitBetweenConditions(3);
-}
 
   async function runAll() {
     try {
@@ -399,7 +403,6 @@ async function waitBetweenConditions(condition_number) {
 
       await showWelcome();
       await showInstructions();
-
       await goNoGoTask();
       await oneBackTask();
       await posturalBalanceTask();
@@ -430,7 +433,11 @@ async function waitBetweenConditions(condition_number) {
       runAll();
     } catch (e) {
       overlay.style.display = "none";
-      post("ready", { fullscreen: false, error: String(e?.message || e), hasConfigFromController });
+      post("ready", {
+        fullscreen: false,
+        error: String(e?.message || e),
+        hasConfigFromController
+      });
       runAll();
     }
   });
@@ -450,7 +457,6 @@ async function waitBetweenConditions(condition_number) {
     if (msg.type === "abort") {
       abort = true;
       post("aborted", { reason: "Abort requested by controller" });
-      return;
     }
   }
 
@@ -464,7 +470,6 @@ async function waitBetweenConditions(condition_number) {
     };
   }
 
-  // If opened manually without controller:
   if (!window.opener && !bc) {
     setText(["No controller window found.", "", "Open this from the Baseline/Active test page."]);
     btnStartFs.disabled = true;
