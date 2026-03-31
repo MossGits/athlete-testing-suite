@@ -39,7 +39,7 @@
 
     .trainerLayout{
       display:grid;
-      grid-template-columns: minmax(320px, 1fr) minmax(420px, 1.15fr);
+      grid-template-columns: minmax(340px, 1.05fr) minmax(430px, 1fr);
       gap:1rem;
       margin-top:1rem;
       align-items:start;
@@ -112,7 +112,7 @@
 
     .metricChart{
       width:100%;
-      height:320px;
+      height:360px;
       display:block;
       border-radius:10px;
       background:rgba(255,255,255,.02);
@@ -128,7 +128,7 @@
     .resultsTable{
       width:100%;
       border-collapse:collapse;
-      min-width:640px;
+      min-width:760px;
     }
 
     .resultsTable th,
@@ -170,8 +170,61 @@
       justify-content:space-between;
     }
 
+    .testRow.selected .primaryBtn{
+      outline:2px solid rgba(255,255,255,.28);
+      outline-offset:1px;
+    }
+
+    .comparisonLegend{
+      display:flex;
+      gap:1rem;
+      flex-wrap:wrap;
+      align-items:center;
+      margin-top:.5rem;
+      font-size:.95rem;
+    }
+
+    .legendItem{
+      display:flex;
+      align-items:center;
+      gap:.45rem;
+    }
+
+    .legendSwatch{
+      width:14px;
+      height:14px;
+      border-radius:4px;
+      display:inline-block;
+      border:1px solid rgba(255,255,255,.25);
+    }
+
+    .sessionInfoGrid{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:.75rem;
+    }
+
+    .sessionInfoCard{
+      border:1px solid rgba(255,255,255,.08);
+      border-radius:10px;
+      padding:.75rem;
+      background:rgba(255,255,255,.02);
+    }
+
+    .sessionInfoCard h4{
+      margin:.1rem 0 .4rem 0;
+      font-size:1rem;
+    }
+
+    .sessionInfoCard .note{
+      white-space:pre-wrap;
+    }
+
     @media (max-width: 1100px){
       .trainerLayout{
+        grid-template-columns: 1fr;
+      }
+      .sessionInfoGrid{
         grid-template-columns: 1fr;
       }
     }
@@ -214,7 +267,7 @@
   <div id="trainerView" class="card" hidden>
     <h2>Trainer Dashboard</h2>
     <p class="note" style="margin-top:.25rem;">
-      Select an athlete to view past tests, run a diagnostic session, and review post-processed results.
+      Select an athlete to view past tests, run a diagnostic session, and compare processed results.
     </p>
 
     <div class="trainerLayout">
@@ -228,16 +281,26 @@
 
         <div id="resultsPanel" class="panelCard" hidden>
           <div class="selectedAthleteHeader">
-            <h3 style="margin:0;">Processed Results</h3>
-            <button id="btnChangeAthleteLeft" class="btn ghost" onclick="clearSelectedAthlete()">Change Athlete</button>
+            <h3 style="margin:0;">Baseline Comparison</h3>
           </div>
 
           <div id="resultsShell" class="resultsShell" style="margin-top:1rem;">
             <div id="resultsEmptyState" class="mutedBox">
-              Select a completed test to view its processed features.
+              Select an athlete to load their most recent baseline.
             </div>
 
             <div id="resultsContent" hidden>
+              <div class="sessionInfoGrid">
+                <div class="sessionInfoCard">
+                  <h4>Reference Baseline</h4>
+                  <div id="baselineSummary" class="note">No baseline loaded.</div>
+                </div>
+                <div class="sessionInfoCard">
+                  <h4>Comparison Test</h4>
+                  <div id="comparisonSummary" class="note">No comparison selected. Click a test on the right.</div>
+                </div>
+              </div>
+
               <div class="chartWrap">
                 <div class="chartControls">
                   <label for="metricSelect">Metric</label>
@@ -247,10 +310,21 @@
                     <option value="sdnn">SDNN</option>
                     <option value="rmssd">RMSSD</option>
                   </select>
-                  <span id="resultsTitle" class="pill">No test selected</span>
+                  <span id="resultsTitle" class="pill">No athlete selected</span>
                 </div>
 
-                <canvas id="metricChart" class="metricChart" width="900" height="320"></canvas>
+                <canvas id="metricChart" class="metricChart" width="980" height="360"></canvas>
+
+                <div class="comparisonLegend">
+                  <div class="legendItem">
+                    <span class="legendSwatch" id="baselineSwatch" style="background:rgba(255,255,255,0.55)"></span>
+                    <span id="baselineLegendLabel">Baseline</span>
+                  </div>
+                  <div class="legendItem">
+                    <span class="legendSwatch" id="comparisonSwatch" style="background:rgba(255,255,255,0.9)"></span>
+                    <span id="comparisonLegendLabel">Comparison</span>
+                  </div>
+                </div>
               </div>
 
               <div class="tableWrap">
@@ -258,12 +332,11 @@
                   <thead>
                     <tr>
                       <th>Phase</th>
-                      <th>Status</th>
-                      <th>Detected Peaks</th>
-                      <th>Mean HR</th>
-                      <th>STD HR</th>
-                      <th>SDNN</th>
-                      <th>RMSSD</th>
+                      <th>Baseline Status</th>
+                      <th>Baseline Value</th>
+                      <th>Comparison Status</th>
+                      <th>Comparison Value</th>
+                      <th>Delta</th>
                     </tr>
                   </thead>
                   <tbody id="resultsTableBody"></tbody>
@@ -345,8 +418,12 @@
 <script>
   let me = null;
   let selectedAthlete = null;
-  let selectedProcessedResult = null;
-  let selectedTestMeta = null;
+  let selectedTests = [];
+  let baselineTestMeta = null;
+  let baselineProcessedResult = null;
+  let comparisonTestMeta = null;
+  let comparisonProcessedResult = null;
+  let selectedComparisonSessionId = null;
 
   const PHASE_LABELS = {
     PPG_GONOGO: 'Go / No-Go',
@@ -354,6 +431,13 @@
     PPG_POSTURALBOTH: 'Postural Both',
     PPG_POSTURALLEFT: 'Postural Left',
     PPG_POSTURALRIGHT: 'Postural Right'
+  };
+
+  const METRIC_LABELS = {
+    meanHr: 'Mean HR',
+    stdHr: 'STD HR',
+    sdnn: 'SDNN',
+    rmssd: 'RMSSD'
   };
 
   let activeModal = {
@@ -459,7 +543,7 @@
       athletesPanel.hidden = false;
       resultsPanel.hidden = true;
       btnChangeAthlete.hidden = true;
-      resetResultsView('Select an athlete, then choose a completed test to view its processed features.');
+      resetResultsView('Select an athlete to load their most recent baseline.');
     }
   }
 
@@ -558,12 +642,6 @@
     if (modal && !modal.classList.contains('hidden')) closeTestModal();
   });
 
-  function buildTrainerSessionTitle(test) {
-    const mode = String(test.mode || 'UNKNOWN').toUpperCase();
-    const when = fmtDateTime(test.createdAt || test.startedAt || test.dateTime);
-    return `${mode} • ${when}`;
-  }
-
   function phaseOrder() {
     return [
       'PPG_GONOGO',
@@ -579,9 +657,39 @@
     return value.toFixed(digits);
   }
 
+  function numericDeltaOrDash(a, b, digits = 3) {
+    if (typeof a !== 'number' || !Number.isFinite(a)) return '—';
+    if (typeof b !== 'number' || !Number.isFinite(b)) return '—';
+    const d = b - a;
+    return `${d >= 0 ? '+' : ''}${d.toFixed(digits)}`;
+  }
+
+  function buildSessionLabel(test) {
+    if (!test) return 'None';
+    const mode = String(test.mode || 'UNKNOWN').toUpperCase();
+    const when = fmtDateTime(test.createdAt || test.startedAt || test.dateTime);
+    return `${mode} • ${when}`;
+  }
+
+  function buildSessionSummaryText(test) {
+    if (!test) return 'None selected.';
+    const mode = String(test.mode || 'UNKNOWN').toUpperCase();
+    const status = String(test.status || '—');
+    const sessionId = test.sessionId || test.id || '(unknown)';
+    return (
+      `Session: ${sessionId}\n` +
+      `Type: ${mode}\n` +
+      `Status: ${status}\n` +
+      `Created: ${fmtDateTime(test.createdAt || test.startedAt || test.dateTime)}`
+    );
+  }
+
   function resetResultsView(message) {
-    selectedProcessedResult = null;
-    selectedTestMeta = null;
+    baselineTestMeta = null;
+    baselineProcessedResult = null;
+    comparisonTestMeta = null;
+    comparisonProcessedResult = null;
+    selectedComparisonSessionId = null;
 
     const emptyEl = document.getElementById('resultsEmptyState');
     const contentEl = document.getElementById('resultsContent');
@@ -594,7 +702,11 @@
     contentEl.hidden = true;
     tableBody.innerHTML = '';
     noteEl.textContent = '';
-    titleEl.textContent = 'No test selected';
+    titleEl.textContent = 'No athlete selected';
+    document.getElementById('baselineSummary').textContent = 'No baseline loaded.';
+    document.getElementById('comparisonSummary').textContent = 'No comparison selected. Click a test on the right.';
+    document.getElementById('baselineLegendLabel').textContent = 'Baseline';
+    document.getElementById('comparisonLegendLabel').textContent = 'Comparison';
 
     clearChart();
   }
@@ -623,44 +735,73 @@
     });
   }
 
-  function renderResultsTable(rows) {
+  function getRowsForMetric(data, metricKey) {
+    return buildRowsFromProcessed(data).map(row => ({
+      ...row,
+      metricValue: row[metricKey]
+    }));
+  }
+
+  function renderResultsTable(metricKey) {
     const tableBody = document.getElementById('resultsTableBody');
     tableBody.innerHTML = '';
 
-    rows.forEach(row => {
+    const baselineRows = baselineProcessedResult ? getRowsForMetric(baselineProcessedResult, metricKey) : [];
+    const comparisonRows = comparisonProcessedResult ? getRowsForMetric(comparisonProcessedResult, metricKey) : [];
+    const comparisonMap = new Map(comparisonRows.map(r => [r.key, r]));
+
+    baselineRows.forEach(bRow => {
+      const cRow = comparisonMap.get(bRow.key) || null;
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td>${row.phaseLabel}</td>
-        <td>${row.status}</td>
-        <td>${row.detectedPeaks ?? '—'}</td>
-        <td>${numericOrDash(row.meanHr, 2)}</td>
-        <td>${numericOrDash(row.stdHr, 2)}</td>
-        <td>${numericOrDash(row.sdnn, 4)}</td>
-        <td>${numericOrDash(row.rmssd, 4)}</td>
+        <td>${bRow.phaseLabel}</td>
+        <td>${bRow.status}</td>
+        <td>${numericOrDash(bRow.metricValue, metricKey === 'sdnn' || metricKey === 'rmssd' ? 4 : 2)}</td>
+        <td>${cRow ? cRow.status : '—'}</td>
+        <td>${cRow ? numericOrDash(cRow.metricValue, metricKey === 'sdnn' || metricKey === 'rmssd' ? 4 : 2) : '—'}</td>
+        <td>${cRow ? numericDeltaOrDash(bRow.metricValue, cRow.metricValue, metricKey === 'sdnn' || metricKey === 'rmssd' ? 4 : 2) : '—'}</td>
       `;
       tableBody.appendChild(tr);
     });
   }
 
-  function drawMetricChart(rows, metricKey) {
+  function drawComparisonChart(metricKey) {
     const canvas = document.getElementById('metricChart');
     const ctx = canvas.getContext('2d');
     const w = canvas.width;
     const h = canvas.height;
-
     ctx.clearRect(0, 0, w, h);
 
-    const margin = { top: 24, right: 28, bottom: 64, left: 64 };
+    const baselineRows = baselineProcessedResult ? getRowsForMetric(baselineProcessedResult, metricKey) : [];
+    if (!baselineRows.length) {
+      ctx.fillStyle = 'rgba(255,255,255,0.75)';
+      ctx.font = '16px sans-serif';
+      ctx.fillText('No baseline data available.', 40, 40);
+      return;
+    }
+
+    const comparisonRows = comparisonProcessedResult ? getRowsForMetric(comparisonProcessedResult, metricKey) : [];
+    const comparisonMap = new Map(comparisonRows.map(r => [r.key, r]));
+
+    const labels = baselineRows.map(r => r.phaseLabel);
+    const paired = baselineRows.map(b => ({
+      phaseLabel: b.phaseLabel,
+      baseline: (typeof b.metricValue === 'number' && Number.isFinite(b.metricValue)) ? b.metricValue : null,
+      comparison: (() => {
+        const c = comparisonMap.get(b.key);
+        return c && typeof c.metricValue === 'number' && Number.isFinite(c.metricValue) ? c.metricValue : null;
+      })()
+    }));
+
+    const allValues = paired.flatMap(p => [p.baseline, p.comparison]).filter(v => typeof v === 'number' && Number.isFinite(v));
+    const hasComparison = paired.some(p => p.comparison != null);
+
+    const margin = { top: 28, right: 28, bottom: 78, left: 72 };
     const plotW = w - margin.left - margin.right;
     const plotH = h - margin.top - margin.bottom;
 
-    const validRows = rows.filter(r => typeof r[metricKey] === 'number' && Number.isFinite(r[metricKey]));
-    const labels = rows.map(r => r.phaseLabel);
-    const values = rows.map(r => (typeof r[metricKey] === 'number' && Number.isFinite(r[metricKey])) ? r[metricKey] : null);
-
     ctx.strokeStyle = 'rgba(255,255,255,0.18)';
     ctx.lineWidth = 1;
-
     for (let i = 0; i <= 4; i++) {
       const y = margin.top + (plotH * i / 4);
       ctx.beginPath();
@@ -676,151 +817,191 @@
     ctx.strokeStyle = 'rgba(255,255,255,0.35)';
     ctx.stroke();
 
-    if (validRows.length === 0) {
+    if (!allValues.length) {
       ctx.fillStyle = 'rgba(255,255,255,0.75)';
       ctx.font = '16px sans-serif';
       ctx.fillText('No valid values available for this metric.', margin.left + 10, margin.top + 30);
       return;
     }
 
-    const minVal = Math.min(...validRows.map(r => r[metricKey]));
-    const maxVal = Math.max(...validRows.map(r => r[metricKey]));
-    const pad = (maxVal - minVal) === 0 ? Math.max(1, Math.abs(maxVal) * 0.15 || 1) : (maxVal - minVal) * 0.15;
-    const yMin = minVal - pad;
-    const yMax = maxVal + pad;
-
-    function xFor(i) {
-      if (labels.length === 1) return margin.left + plotW / 2;
-      return margin.left + (plotW * i / (labels.length - 1));
-    }
+    const maxVal = Math.max(...allValues);
+    const yMax = maxVal <= 0 ? 1 : maxVal * 1.18;
 
     function yFor(v) {
-      return margin.top + plotH - ((v - yMin) / (yMax - yMin)) * plotH;
+      return margin.top + plotH - (v / yMax) * plotH;
     }
 
-    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    ctx.fillStyle = 'rgba(255,255,255,0.78)';
     ctx.font = '12px sans-serif';
     ctx.textAlign = 'right';
     ctx.textBaseline = 'middle';
     for (let i = 0; i <= 4; i++) {
       const frac = i / 4;
-      const v = yMax - (yMax - yMin) * frac;
+      const v = yMax - yMax * frac;
       const y = margin.top + plotH * frac;
-      ctx.fillText(v.toFixed(2), margin.left - 8, y);
+      ctx.fillText(v.toFixed(metricKey === 'sdnn' || metricKey === 'rmssd' ? 4 : 2), margin.left - 8, y);
     }
 
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    labels.forEach((label, i) => {
-      const x = xFor(i);
-      const y = h - margin.bottom + 10;
-      ctx.fillStyle = 'rgba(255,255,255,0.78)';
-      const shortLabel = label.replace('Postural ', 'Post. ');
-      ctx.fillText(shortLabel, x, y);
-    });
+    const groups = labels.length;
+    const groupWidth = plotW / Math.max(groups, 1);
+    const barWidth = hasComparison ? Math.min(32, groupWidth * 0.26) : Math.min(44, groupWidth * 0.4);
 
-    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    let started = false;
-    values.forEach((v, i) => {
-      if (v == null) return;
-      const x = xFor(i);
-      const y = yFor(v);
-      if (!started) {
-        ctx.moveTo(x, y);
-        started = true;
-      } else {
-        ctx.lineTo(x, y);
-      }
-    });
-    ctx.stroke();
+    paired.forEach((p, i) => {
+      const centerX = margin.left + groupWidth * i + groupWidth / 2;
+      const baselineX = hasComparison ? centerX - (barWidth * 0.7) : centerX - barWidth / 2;
+      const comparisonX = centerX + (barWidth * 0.1);
 
-    values.forEach((v, i) => {
-      const x = xFor(i);
-      if (v == null) {
-        ctx.fillStyle = 'rgba(255,255,255,0.25)';
-        ctx.beginPath();
-        ctx.arc(x, h - margin.bottom, 4, 0, Math.PI * 2);
-        ctx.fill();
-        return;
-      }
-
-      const y = yFor(v);
-      ctx.fillStyle = 'rgba(255,255,255,0.95)';
-      ctx.beginPath();
-      ctx.arc(x, y, 5, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      const labelY = h - margin.bottom + 12;
+      ctx.fillStyle = 'rgba(255,255,255,0.82)';
       ctx.font = '12px sans-serif';
       ctx.textAlign = 'center';
-      ctx.textBaseline = 'bottom';
-      ctx.fillText(v.toFixed(2), x, y - 8);
+      ctx.textBaseline = 'top';
+      ctx.fillText(p.phaseLabel.replace('Postural ', 'Post. '), centerX, labelY);
+
+      if (p.baseline != null) {
+        const y = yFor(p.baseline);
+        const height = h - margin.bottom - y;
+        ctx.fillStyle = 'rgba(255,255,255,0.45)';
+        ctx.fillRect(baselineX, y, barWidth, height);
+
+        ctx.fillStyle = 'rgba(255,255,255,0.92)';
+        ctx.font = '12px sans-serif';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(
+          p.baseline.toFixed(metricKey === 'sdnn' || metricKey === 'rmssd' ? 4 : 2),
+          baselineX + barWidth / 2,
+          y - 6
+        );
+      }
+
+      if (hasComparison && p.comparison != null) {
+        const y = yFor(p.comparison);
+        const height = h - margin.bottom - y;
+        ctx.fillStyle = 'rgba(255,255,255,0.92)';
+        ctx.fillRect(comparisonX, y, barWidth, height);
+
+        ctx.fillStyle = 'rgba(255,255,255,0.92)';
+        ctx.font = '12px sans-serif';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(
+          p.comparison.toFixed(metricKey === 'sdnn' || metricKey === 'rmssd' ? 4 : 2),
+          comparisonX + barWidth / 2,
+          y - 6
+        );
+      }
     });
   }
 
-  function renderProcessedResults(data, test) {
-    selectedProcessedResult = data;
-    selectedTestMeta = test;
-
+  function renderComparisonView() {
     const emptyEl = document.getElementById('resultsEmptyState');
     const contentEl = document.getElementById('resultsContent');
     const noteEl = document.getElementById('resultsNote');
     const titleEl = document.getElementById('resultsTitle');
     const metricSelect = document.getElementById('metricSelect');
 
-    const rows = buildRowsFromProcessed(data);
+    if (!baselineProcessedResult || !baselineTestMeta) {
+      emptyEl.hidden = false;
+      emptyEl.textContent = 'No processed baseline is available yet for this athlete.';
+      contentEl.hidden = true;
+      clearChart();
+      return;
+    }
 
     emptyEl.hidden = true;
     contentEl.hidden = false;
-    titleEl.textContent = buildTrainerSessionTitle(test);
-    renderResultsTable(rows);
-    drawMetricChart(rows, metricSelect.value);
 
-    const okCount = rows.filter(r => r.status === 'ok').length;
-    noteEl.textContent = okCount > 0
-      ? `Showing processed PPG features for ${okCount} phase(s).`
-      : 'No successful processed PPG phases were found for this session.';
+    titleEl.textContent = selectedAthlete
+      ? `${selectedAthlete.firstName || ''} ${selectedAthlete.lastName || ''}`.trim() || 'Selected athlete'
+      : 'Selected athlete';
+
+    document.getElementById('baselineSummary').textContent = buildSessionSummaryText(baselineTestMeta);
+    document.getElementById('comparisonSummary').textContent = comparisonTestMeta
+      ? buildSessionSummaryText(comparisonTestMeta)
+      : 'No comparison selected. Click a test on the right.';
+
+    document.getElementById('baselineLegendLabel').textContent = buildSessionLabel(baselineTestMeta);
+    document.getElementById('comparisonLegendLabel').textContent = comparisonTestMeta
+      ? buildSessionLabel(comparisonTestMeta)
+      : 'Comparison';
+
+    renderResultsTable(metricSelect.value);
+    drawComparisonChart(metricSelect.value);
+
+    const baselineRows = buildRowsFromProcessed(baselineProcessedResult);
+    const okCount = baselineRows.filter(r => r.status === 'ok').length;
+    noteEl.textContent = comparisonTestMeta
+      ? `Comparing ${METRIC_LABELS[metricSelect.value]} across ${okCount} baseline phase(s).`
+      : `Showing the most recent processed baseline. Click another test to compare against it.`;
   }
 
-  async function loadProcessedFeatures(sessionId, test) {
-    const r = await fetchJson(`/api/sessions/${encodeURIComponent(sessionId)}/processed-features`);
-
-    if (r.status === 404) {
-      resetResultsView('No processed features found yet for this session. Use Process first.');
-      return false;
-    }
-
-    if (!r.ok) {
-      resetResultsView(`Unable to load processed features (HTTP ${r.status}).`);
-      return false;
-    }
-
-    renderProcessedResults(r.data, test);
-    return true;
+  async function loadProcessedFeatures(sessionId) {
+    return await fetchJson(`/api/sessions/${encodeURIComponent(sessionId)}/processed-features`);
   }
 
-  async function processSessionFeatures(sessionId, test) {
-    resetResultsView('Processing features...');
-    const r = await postJson(`/api/sessions/${encodeURIComponent(sessionId)}/process-features`, null);
-
-    if (!r.ok) {
-      resetResultsView(`Feature processing failed (HTTP ${r.status}).`);
-      return false;
-    }
-
-    renderProcessedResults(r.data, test);
-    return true;
-  }
-
-  function showTrainerTestDetail(test) {
+  async function ensureProcessedFeatures(test) {
     const sessionId = test.sessionId || test.id || '';
     if (!sessionId) {
-      resetResultsView('This test is missing a valid session ID.');
+      return { ok: false, status: 0, text: 'Missing session ID', data: null };
+    }
+
+    let r = await loadProcessedFeatures(sessionId);
+    if (r.ok) return r;
+    if (r.status !== 404) return r;
+
+    r = await postJson(`/api/sessions/${encodeURIComponent(sessionId)}/process-features`, null);
+    return r;
+  }
+
+  function setSelectedComparisonSession(sessionId) {
+    selectedComparisonSessionId = sessionId || null;
+    document.querySelectorAll('.testRow').forEach(row => {
+      row.classList.toggle('selected', row.dataset.sessionId === selectedComparisonSessionId);
+    });
+  }
+
+  async function showComparisonTest(test) {
+    const sessionId = test.sessionId || test.id || '';
+    if (!sessionId) {
+      setMsg('This test is missing a valid session ID.', 'warn');
       return;
     }
-    loadProcessedFeatures(sessionId, test);
+
+    const processed = await ensureProcessedFeatures(test);
+    if (!processed.ok) {
+      setMsg(`Unable to load comparison features (HTTP ${processed.status}).`, 'warn');
+      return;
+    }
+
+    comparisonTestMeta = test;
+    comparisonProcessedResult = processed.data;
+    setSelectedComparisonSession(sessionId);
+    renderComparisonView();
+  }
+
+  async function loadMostRecentBaseline() {
+    baselineTestMeta = null;
+    baselineProcessedResult = null;
+    comparisonTestMeta = null;
+    comparisonProcessedResult = null;
+    selectedComparisonSessionId = null;
+
+    const baselines = selectedTests.filter(t => String(t.mode || '').toUpperCase() === 'BASELINE');
+    if (!baselines.length) {
+      resetResultsView('No baseline tests were found for this athlete.');
+      return;
+    }
+
+    const newestBaseline = sortNewestFirst(baselines, 'createdAt')[0];
+    const processed = await ensureProcessedFeatures(newestBaseline);
+
+    if (!processed.ok) {
+      resetResultsView(`Most recent baseline could not be processed (HTTP ${processed.status}).`);
+      return;
+    }
+
+    baselineTestMeta = newestBaseline;
+    baselineProcessedResult = processed.data;
+    renderComparisonView();
   }
 
   async function init() {
@@ -859,9 +1040,7 @@
 
       const metricSelect = document.getElementById('metricSelect');
       metricSelect.addEventListener('change', () => {
-        if (!selectedProcessedResult) return;
-        const rows = buildRowsFromProcessed(selectedProcessedResult);
-        drawMetricChart(rows, metricSelect.value);
+        renderComparisonView();
       });
 
       return;
@@ -912,11 +1091,9 @@
     const when = fmtDateTime(test.startedAt || test.dateTime || test.createdAt);
     el.textContent =
       `Test: ${test.label || 'Muse 2 Test'}\n` +
-      `Date/Time: ${when}\n` +
-      `\n` +
+      `Date/Time: ${when}\n\n` +
       `Details:\n` +
-      `${test.summary || test.notes || '(No additional details yet.)'}\n` +
-      `\n` +
+      `${test.summary || test.notes || '(No additional details yet.)'}\n\n` +
       `(Raw payload)\n` +
       JSON.stringify(test, null, 2);
   }
@@ -983,12 +1160,15 @@
 
     updateAthletePanels();
     updateTrainerButtons();
-    resetResultsView('Select a completed test to view its processed features.');
+    selectedTests = [];
+    resetResultsView('Loading most recent baseline...');
     await loadTrainerTestsForSelectedAthlete();
+    await loadMostRecentBaseline();
   }
 
   function clearSelectedAthlete() {
     selectedAthlete = null;
+    selectedTests = [];
     document.getElementById('selectedAthleteCard').className = 'note';
     document.getElementById('selectedAthleteCard').textContent = 'Select an athlete to begin.';
     document.getElementById('trainerTestsList').innerHTML = '';
@@ -1036,6 +1216,7 @@
     });
 
     const ordered = sortNewestFirst(completed, 'createdAt');
+    selectedTests = ordered;
 
     if (ordered.length === 0) {
       emptyEl.hidden = false;
@@ -1051,11 +1232,12 @@
 
       const row = document.createElement('div');
       row.className = 'testRow';
+      row.dataset.sessionId = sessionId || '';
 
       const btn = document.createElement('button');
       btn.className = 'btn ghost primaryBtn';
       btn.innerHTML = `<span>${mode} — ${when}</span><span class="pill">${status}</span>`;
-      btn.onclick = () => showTrainerTestDetail({ ...t, sessionId });
+      btn.onclick = () => showComparisonTest({ ...t, sessionId });
 
       const processBtn = document.createElement('button');
       processBtn.className = 'btn';
@@ -1064,17 +1246,36 @@
       processBtn.onclick = async (ev) => {
         ev.stopPropagation();
         if (!sessionId) return;
-        await processSessionFeatures(sessionId, { ...t, sessionId });
+        const processed = await postJson(`/api/sessions/${encodeURIComponent(sessionId)}/process-features`, null);
+        if (!processed.ok) {
+          setMsg(`Feature processing failed (HTTP ${processed.status}).`, 'warn');
+          return;
+        }
+
+        const isBaseline = baselineTestMeta && (baselineTestMeta.sessionId || baselineTestMeta.id) === sessionId;
+        const isComparison = comparisonTestMeta && (comparisonTestMeta.sessionId || comparisonTestMeta.id) === sessionId;
+
+        if (isBaseline) {
+          baselineProcessedResult = processed.data;
+        }
+        if (isComparison) {
+          comparisonProcessedResult = processed.data;
+        }
+        if (!baselineTestMeta || isBaseline) {
+          await loadMostRecentBaseline();
+        } else {
+          renderComparisonView();
+        }
       };
 
       const featuresBtn = document.createElement('button');
       featuresBtn.className = 'btn ghost';
-      featuresBtn.textContent = 'Features';
+      featuresBtn.textContent = 'Compare';
       featuresBtn.disabled = !sessionId;
       featuresBtn.onclick = async (ev) => {
         ev.stopPropagation();
         if (!sessionId) return;
-        await loadProcessedFeatures(sessionId, { ...t, sessionId });
+        await showComparisonTest({ ...t, sessionId });
       };
 
       const dl = document.createElement('button');
@@ -1111,11 +1312,13 @@
           return;
         }
 
-        if (selectedTestMeta && (selectedTestMeta.sessionId || selectedTestMeta.id) === sessionId) {
-          resetResultsView('Select a completed test to view its processed features.');
+        if ((baselineTestMeta && (baselineTestMeta.sessionId || baselineTestMeta.id) === sessionId) ||
+            (comparisonTestMeta && (comparisonTestMeta.sessionId || comparisonTestMeta.id) === sessionId)) {
+          resetResultsView('Reloading baseline after delete...');
         }
 
         await loadTrainerTestsForSelectedAthlete();
+        await loadMostRecentBaseline();
       };
 
       row.appendChild(btn);
