@@ -309,6 +309,11 @@
                     <option value="stdHr">STD HR</option>
                     <option value="sdnn">SDNN</option>
                     <option value="rmssd">RMSSD</option>
+                    <option value="delta">Relative Delta Power</option>
+                    <option value="theta">Relative Theta Power</option>
+                    <option value="alpha">Relative Alpha Power</option>
+                    <option value="beta">Relative Beta Power</option>
+                    <option value="gamma">Relative Gamma Power</option>
                   </select>
                   <span id="resultsTitle" class="pill">No athlete selected</span>
                 </div>
@@ -434,14 +439,24 @@
     PPG_ONEBACK: '1-Back',
     PPG_POSTURALBOTH: 'Postural Both',
     PPG_POSTURALLEFT: 'Postural Left',
-    PPG_POSTURALRIGHT: 'Postural Right'
+    PPG_POSTURALRIGHT: 'Postural Right',
+    EEG_GONOGO: 'Go / No-Go',
+    EEG_ONEBACK: '1-Back',
+    EEG_POSTURALBOTH: 'Postural Both',
+    EEG_POSTURALLEFT: 'Postural Left',
+    EEG_POSTURALRIGHT: 'Postural Right'
   };
 
   const METRIC_LABELS = {
     meanHr: 'Mean HR',
     stdHr: 'STD HR',
     sdnn: 'SDNN',
-    rmssd: 'RMSSD'
+    rmssd: 'RMSSD',
+    delta: 'Relative Delta Power',
+    theta: 'Relative Theta Power',
+    alpha: 'Relative Alpha Power',
+    beta: 'Relative Beta Power',
+    gamma: 'Relative Gamma Power'
   };
 
   let activeModal = {
@@ -760,26 +775,35 @@
     ctx.clearRect(0, 0, width, height);
   }
 
-  function buildRowsFromProcessed(data) {
-    const features = data?.ppgFeatures || {};
+  function buildRowsFromProcessed(data, metricKey = 'meanHr') {
+    const isEegMetric = ['delta', 'theta', 'alpha', 'beta', 'gamma'].includes(metricKey);
+    const features = isEegMetric ? (data?.eegFeatures || {}) : (data?.ppgFeatures || {});
+
     return phaseOrder().map(kind => {
-      const raw = features[kind] || {};
+      const lookupKey = isEegMetric ? kind.replace('PPG_', 'EEG_') : kind;
+      const raw = features[lookupKey] || {};
+
       return {
-        key: kind,
-        phaseLabel: PHASE_LABELS[kind] || kind,
+        key: lookupKey,
+        phaseLabel: PHASE_LABELS[lookupKey] || PHASE_LABELS[kind] || kind,
         status: raw.status || 'missing',
         detectedPeaks: raw.detectedPeaks,
         meanHr: raw.meanHr,
         stdHr: raw.stdHr,
         sdnn: raw.sdnn,
         rmssd: raw.rmssd,
+        delta: raw.delta,
+        theta: raw.theta,
+        alpha: raw.alpha,
+        beta: raw.beta,
+        gamma: raw.gamma,
         message: raw.message || ''
       };
     });
   }
 
   function getRowsForMetric(data, metricKey) {
-    return buildRowsFromProcessed(data).map(row => ({
+    return buildRowsFromProcessed(data, metricKey).map(row => ({
       ...row,
       metricValue: row[metricKey]
     }));
@@ -792,7 +816,7 @@
     const baselineRows = baselineProcessedResult ? getRowsForMetric(baselineProcessedResult, metricKey) : [];
     const comparisonRows = comparisonProcessedResult ? getRowsForMetric(comparisonProcessedResult, metricKey) : [];
     const comparisonMap = new Map(comparisonRows.map(r => [r.key, r]));
-    const digits = (metricKey === 'sdnn' || metricKey === 'rmssd') ? 4 : 2;
+    const digits = ['sdnn', 'rmssd', 'delta', 'theta', 'alpha', 'beta', 'gamma'].includes(metricKey) ? 4 : 2;
 
     baselineRows.forEach(bRow => {
       const cRow = comparisonMap.get(bRow.key) || null;
@@ -825,7 +849,7 @@
 
     const comparisonRows = comparisonProcessedResult ? getRowsForMetric(comparisonProcessedResult, metricKey) : [];
     const comparisonMap = new Map(comparisonRows.map(r => [r.key, r]));
-    const digits = (metricKey === 'sdnn' || metricKey === 'rmssd') ? 4 : 2;
+    const digits = ['sdnn', 'rmssd', 'delta', 'theta', 'alpha', 'beta', 'gamma'].includes(metricKey) ? 4 : 2;
 
     const paired = baselineRows.map(b => {
       const c = comparisonMap.get(b.key);
@@ -1000,7 +1024,7 @@
     renderResultsTable(metricSelect.value);
     drawComparisonChart(metricSelect.value);
 
-    const baselineRows = buildRowsFromProcessed(baselineProcessedResult);
+    const baselineRows = buildRowsFromProcessed(baselineProcessedResult, metricSelect.value);
     const okCount = baselineRows.filter(r => r.status === 'ok').length;
     noteEl.textContent = comparisonTestMeta
       ? `Comparing ${METRIC_LABELS[metricSelect.value]} across ${okCount} baseline phase(s).`
