@@ -31,17 +31,20 @@
   let abort = false;
   let hasConfigFromController = false;
 
+  // ---------- FIX: send via exactly ONE transport (prevents duplicates) ----------
   function post(type, payload = {}) {
     const msg = { source: "PARADIGM", type, payload };
 
-    // 1) BroadcastChannel
+    // 1) BroadcastChannel (preferred)
     if (bc) {
       try { bc.postMessage(msg); } catch {}
+      return;
     }
 
     // 2) window.opener fallback
     if (window.opener) {
       try { window.opener.postMessage(msg, "*"); } catch {}
+      return;
     }
 
     // 3) localStorage fallback
@@ -111,11 +114,7 @@
           resolve();
         }
       };
-
-      function cleanup() {
-        window.removeEventListener("keydown", onKey);
-      }
-
+      function cleanup() { window.removeEventListener("keydown", onKey); }
       window.addEventListener("keydown", onKey);
     });
   }
@@ -292,12 +291,7 @@
       window.removeEventListener("keydown", onKey);
 
       const correct = (isTarget && responded) || (!isTarget && !responded);
-      post("response", {
-        task: "1-Back",
-        stimulus: isTarget ? "Target" : "Non-Target",
-        correct,
-        rtMs
-      });
+      post("response", { task: "1-Back", stimulus: isTarget ? "Target" : "Non-Target", correct, rtMs });
 
       showBlank();
       const jitter = Math.random() * jitterMaxMs;
@@ -356,43 +350,30 @@
     const trialMs = cfg.posturalTrialMs ?? 30000;
 
     const conditions = [
-      {
-        phase: "PosturalBoth",
-        label: "Eyes Closed (Both Feet)",
-        marker: "Postural_Both_Feet"
-      },
-      {
-        phase: "PosturalLeft",
-        label: "Eyes Closed (Left Leg)",
-        marker: "Postural_Left_Leg"
-      },
-      {
-        phase: "PosturalRight",
-        label: "Eyes Closed (Right Leg)",
-        marker: "Postural_Right_Leg"
-      }
+      { label: "Eyes Closed (Both Feet)", marker: "Postural_Both_Feet" },
+      { label: "Eyes Closed (Left Leg)", marker: "Postural_Left_Leg" },
+      { label: "Eyes Closed (Right Leg)", marker: "Postural_Right_Leg" }
     ];
+
+    post("phaseStart", { phase: "Postural" });
+    post("marker", { marker: "PHASE_START_POSTURAL" });
 
     for (let i = 0; i < conditions.length; i++) {
       if (abort) throw new Error("Aborted");
 
       const condition = conditions[i];
-
-      post("phaseStart", { phase: condition.phase });
-      post("marker", { marker: `PHASE_START_${condition.phase.toUpperCase()}` });
-
       setText(condition.label);
       post("marker", { marker: condition.marker });
 
       await countdown(trialMs, `Postural ${i + 1}/3`);
 
-      post("marker", { marker: `PHASE_END_${condition.phase.toUpperCase()}` });
-      post("phaseEnd", { phase: condition.phase });
-
       if (i < conditions.length - 1) {
         await waitBetweenConditions(i + 1);
       }
     }
+
+    post("marker", { marker: "PHASE_END_POSTURAL" });
+    post("phaseEnd", { phase: "Postural" });
 
     await waitBetweenConditions(3);
   }
@@ -400,7 +381,6 @@
   async function runAll() {
     try {
       post("started", {});
-
       await showWelcome();
       await showInstructions();
       await goNoGoTask();
@@ -433,11 +413,7 @@
       runAll();
     } catch (e) {
       overlay.style.display = "none";
-      post("ready", {
-        fullscreen: false,
-        error: String(e?.message || e),
-        hasConfigFromController
-      });
+      post("ready", { fullscreen: false, error: String(e?.message || e), hasConfigFromController });
       runAll();
     }
   });
@@ -460,15 +436,8 @@
     }
   }
 
-  window.addEventListener("message", (ev) => {
-    handleControllerMessage(ev.data);
-  });
-
-  if (bc) {
-    bc.onmessage = (ev) => {
-      handleControllerMessage(ev.data);
-    };
-  }
+  window.addEventListener("message", (ev) => handleControllerMessage(ev.data));
+  if (bc) bc.onmessage = (ev) => handleControllerMessage(ev.data);
 
   if (!window.opener && !bc) {
     setText(["No controller window found.", "", "Open this from the Baseline/Active test page."]);
