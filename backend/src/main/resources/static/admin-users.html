@@ -112,7 +112,7 @@
 
     .metricChart{
       width:100%;
-      height:420px;
+      height:520px;
       display:block;
       border-radius:10px;
       background:rgba(255,255,255,.02);
@@ -724,29 +724,14 @@
   }
 
   function getChartColors() {
-    const bg = getComputedStyle(document.body).backgroundColor || '';
-    const isLightBg = bg.includes('255') || bg.includes('254') || bg.includes('253');
-
-    if (isLightBg) {
-      return {
-        grid: 'rgba(0,0,0,0.12)',
-        axis: 'rgba(0,0,0,0.30)',
-        text: 'rgba(0,0,0,0.80)',
-        label: 'rgba(0,0,0,0.92)',
-        baselineBar: 'rgba(59,130,246,0.45)',
-        comparisonBar: 'rgba(37,99,235,0.90)',
-        deltaLine: 'rgba(220,38,38,0.95)'
-      };
-    }
-
     return {
-      grid: 'rgba(255,255,255,0.18)',
-      axis: 'rgba(255,255,255,0.35)',
-      text: 'rgba(255,255,255,0.78)',
-      label: 'rgba(255,255,255,0.95)',
-      baselineBar: 'rgba(96,165,250,0.55)',
-      comparisonBar: 'rgba(59,130,246,0.95)',
-      deltaLine: 'rgba(248,113,113,0.98)'
+      grid: 'rgba(0,0,0,0.20)',
+      axis: 'rgba(0,0,0,0.55)',
+      text: 'rgba(0,0,0,1)',
+      label: 'rgba(0,0,0,1)',
+      baselineBar: 'rgba(59,130,246,0.45)',
+      comparisonBar: 'rgba(37,99,235,0.90)',
+      deltaLine: 'rgba(220,38,38,0.95)'
     };
   }
 
@@ -802,7 +787,7 @@
     const rect = canvas.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
     const cssWidth = Math.max(300, Math.floor(rect.width || 980));
-    const cssHeight = Math.max(260, Math.floor(rect.height || 420));
+    const cssHeight = Math.max(320, Math.floor(rect.height || 520));
     canvas.width = Math.floor(cssWidth * dpr);
     canvas.height = Math.floor(cssHeight * dpr);
     const ctx = canvas.getContext('2d');
@@ -889,8 +874,7 @@
           label: `${bRow.phaseLabel} ${group.labels[metricKey]}`,
           shortLabel: `${bRow.phaseLabel.replace('Postural ', 'Post. ')} ${group.labels[metricKey]}`,
           baseline: bVal,
-          comparison: cVal,
-          digits: digitsForMetric(metricKey)
+          comparison: cVal
         });
       });
     });
@@ -908,12 +892,12 @@
       return;
     }
 
-    const margin = { top: 32, right: 26, bottom: 120, left: 76 };
+    const margin = { top: 32, right: 30, bottom: 170, left: 80 };
     const plotW = w - margin.left - margin.right;
     const plotH = h - margin.top - margin.bottom;
 
     const maxVal = Math.max(...values);
-    const yMax = maxVal > 0 ? maxVal * 1.22 : 1;
+    const yMax = maxVal > 0 ? maxVal * 1.18 : 1;
 
     function yFor(v) {
       return margin.top + plotH - (v / yMax) * plotH;
@@ -948,17 +932,17 @@
     }
 
     const itemCount = flat.length;
-    const groupWidth = plotW / Math.max(itemCount, 1);
-    const barWidth = Math.min(24, groupWidth * 0.22);
+    const slotWidth = plotW / Math.max(itemCount, 1);
+    const barWidth = Math.min(18, slotWidth * 0.22);
 
     flat.forEach((p, i) => {
-      const centerX = margin.left + groupWidth * i + groupWidth / 2;
-      const baselineX = centerX - barWidth - 4;
-      const comparisonX = centerX + 4;
+      const centerX = margin.left + slotWidth * i + slotWidth / 2;
+      const baselineX = centerX - barWidth - 3;
+      const comparisonX = centerX + 3;
 
       ctx.save();
-      ctx.translate(centerX, h - margin.bottom + 10);
-      ctx.rotate(-Math.PI / 4);
+      ctx.translate(centerX, h - margin.bottom + 14);
+      ctx.rotate(-Math.PI / 3.2);
       ctx.fillStyle = colors.text;
       ctx.font = '11px sans-serif';
       ctx.textAlign = 'right';
@@ -995,6 +979,13 @@
         ctx.beginPath();
         ctx.moveTo(xMid, yTop);
         ctx.lineTo(xMid, yBottom);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(xMid - 5, yTop);
+        ctx.lineTo(xMid + 5, yTop);
+        ctx.moveTo(xMid - 5, yBottom);
+        ctx.lineTo(xMid + 5, yBottom);
         ctx.stroke();
       }
     });
