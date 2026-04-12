@@ -112,7 +112,7 @@
 
     .metricChart{
       width:100%;
-      height:560px;
+      height:600px;
       display:block;
       border-radius:10px;
       background:rgba(255,255,255,.02);
@@ -807,7 +807,7 @@
     const rect = canvas.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
     const cssWidth = Math.max(300, Math.floor(rect.width || 980));
-    const cssHeight = Math.max(360, Math.floor(rect.height || 560));
+    const cssHeight = Math.max(360, Math.floor(rect.height || 600));
     canvas.width = Math.floor(cssWidth * dpr);
     canvas.height = Math.floor(cssHeight * dpr);
     const ctx = canvas.getContext('2d');
@@ -836,7 +836,6 @@
 
     canvas.addEventListener('wheel', (e) => {
       e.preventDefault();
-
       const delta = e.deltaY < 0 ? 1.12 : 1 / 1.12;
       chartState.zoom = clamp(chartState.zoom * delta, 1, 6);
 
@@ -868,9 +867,7 @@
     });
 
     canvas.addEventListener('mouseleave', () => {
-      if (!chartState.dragging) {
-        canvas.style.cursor = 'grab';
-      }
+      if (!chartState.dragging) canvas.style.cursor = 'grab';
     });
   }
 
@@ -939,6 +936,15 @@
     }
 
     const isEeg = sensorKey === 'EEG';
+
+    function shortPhaseLabel(label) {
+      return label
+        .replace('Go / No-Go', 'Go/No-Go')
+        .replace('Postural Both', 'Post. Both')
+        .replace('Postural Left', 'Post. Left')
+        .replace('Postural Right', 'Post. Right');
+    }
+
     const items = [];
 
     if (isEeg) {
@@ -952,11 +958,7 @@
             metricKey,
             metricLabel: group.labels[metricKey],
             phaseLabel: bRow.phaseLabel,
-            shortPhaseLabel: bRow.phaseLabel
-              .replace('Go / No-Go', 'Go/No-Go')
-              .replace('Postural Both', 'Post. Both')
-              .replace('Postural Left', 'Post. Left')
-              .replace('Postural Right', 'Post. Right'),
+            shortPhaseLabel: shortPhaseLabel(bRow.phaseLabel),
             baseline: bVal,
             comparison: cVal
           });
@@ -973,11 +975,7 @@
             metricKey,
             metricLabel: group.labels[metricKey],
             phaseLabel: bRow.phaseLabel,
-            shortPhaseLabel: `${bRow.phaseLabel
-              .replace('Go / No-Go', 'Go/No-Go')
-              .replace('Postural Both', 'Post. Both')
-              .replace('Postural Left', 'Post. Left')
-              .replace('Postural Right', 'Post. Right')} ${group.labels[metricKey]}`,
+            shortPhaseLabel: `${shortPhaseLabel(bRow.phaseLabel)} ${group.labels[metricKey]}`,
             baseline: bVal,
             comparison: cVal
           });
@@ -999,8 +997,8 @@
     }
 
     const margin = isEeg
-      ? { top: 68, right: 30, bottom: 145, left: 80 }
-      : { top: 38, right: 30, bottom: 145, left: 80 };
+      ? { top: 72, right: 30, bottom: 180, left: 80 }
+      : { top: 40, right: 30, bottom: 180, left: 80 };
 
     const plotW = w - margin.left - margin.right;
     const plotH = h - margin.top - margin.bottom;
@@ -1013,7 +1011,7 @@
     }
 
     const itemCount = items.length;
-    const baseMinSlotWidth = isEeg ? 76 : 88;
+    const baseMinSlotWidth = isEeg ? 88 : 104;
     const fitSlotWidth = plotW / Math.max(itemCount, 1);
     const slotWidth = Math.max(baseMinSlotWidth, fitSlotWidth) * chartState.zoom;
     const contentWidth = itemCount * slotWidth;
@@ -1054,7 +1052,7 @@
         ctx.font = 'bold 12px sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'bottom';
-        ctx.fillText(group.labels[metricKey], groupCenterX, margin.top - 14);
+        ctx.fillText(group.labels[metricKey], groupCenterX, margin.top - 16);
 
         if (metricIdx < metricCount - 1) {
           ctx.strokeStyle = 'rgba(0,0,0,0.18)';
@@ -1074,13 +1072,29 @@
       const baselineX = slotCenterX - barWidth - barGap / 2;
       const comparisonX = slotCenterX + barGap / 2;
 
+      const labelY1 = h - margin.bottom + 12;
+      const labelY2 = h - margin.bottom + 28;
+
       ctx.fillStyle = colors.text;
       ctx.font = '10px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
 
-      const labelY = h - margin.bottom + 12;
-      ctx.fillText(p.shortPhaseLabel, slotCenterX, labelY);
+      if (isEeg) {
+        const onSecondRow = (i % 2) === 1;
+        ctx.fillText(p.shortPhaseLabel, slotCenterX, onSecondRow ? labelY2 : labelY1);
+      } else {
+        const parts = p.shortPhaseLabel.split(' ');
+        if (parts.length >= 3) {
+          const firstLine = parts.slice(0, -1).join(' ');
+          const secondLine = parts.slice(-1).join(' ');
+          ctx.fillText(firstLine, slotCenterX, labelY1);
+          ctx.fillText(secondLine, slotCenterX, labelY2);
+        } else {
+          const onSecondRow = (i % 2) === 1;
+          ctx.fillText(p.shortPhaseLabel, slotCenterX, onSecondRow ? labelY2 : labelY1);
+        }
+      }
 
       if (p.baseline != null) {
         const y = yFor(p.baseline);
