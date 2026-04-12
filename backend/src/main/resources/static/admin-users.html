@@ -450,7 +450,8 @@
   const SENSOR_GROUPS = {
     EEG: {
       sourceKey: 'eegFeatures',
-      metrics: ['delta', 'theta', 'alpha', 'beta', 'gamma'],
+      tableMetrics: ['delta', 'theta', 'alpha', 'beta', 'gamma'],
+      chartMetrics: ['delta', 'theta', 'alpha', 'beta', 'gamma'],
       labels: {
         delta: 'Delta',
         theta: 'Theta',
@@ -461,8 +462,10 @@
     },
     PPG: {
       sourceKey: 'ppgFeatures',
-      metrics: ['stdHr', 'sdnn', 'rmssd'],
+      tableMetrics: ['meanHr', 'stdHr', 'sdnn', 'rmssd'],
+      chartMetrics: ['stdHr', 'sdnn', 'rmssd'],
       labels: {
+        meanHr: 'Mean HR',
         stdHr: 'STD HR',
         sdnn: 'SDNN',
         rmssd: 'RMSSD'
@@ -470,14 +473,16 @@
     },
     ACC: {
       sourceKey: 'accFeatures',
-      metrics: ['rmsSway'],
+      tableMetrics: ['rmsSway'],
+      chartMetrics: ['rmsSway'],
       labels: {
         rmsSway: 'RMS Sway'
       }
     },
     GYRO: {
       sourceKey: 'gyroFeatures',
-      metrics: ['rmsSway'],
+      tableMetrics: ['rmsSway'],
+      chartMetrics: ['rmsSway'],
       labels: {
         rmsSway: 'RMS Sway'
       }
@@ -822,7 +827,7 @@
     baselineRows.forEach(bRow => {
       const cRow = comparisonMap.get(bRow.key) || null;
 
-      group.metrics.forEach((metricKey, idx) => {
+      group.tableMetrics.forEach((metricKey, idx) => {
         const digits = digitsForMetric(metricKey);
         const tr = document.createElement('tr');
 
@@ -860,7 +865,7 @@
     const flat = [];
     baselineRows.forEach(bRow => {
       const cRow = comparisonMap.get(bRow.key) || {};
-      group.metrics.forEach(metricKey => {
+      group.chartMetrics.forEach(metricKey => {
         const bVal = (typeof bRow[metricKey] === 'number' && Number.isFinite(bRow[metricKey])) ? bRow[metricKey] : null;
         const cVal = (typeof cRow[metricKey] === 'number' && Number.isFinite(cRow[metricKey])) ? cRow[metricKey] : null;
 
