@@ -128,7 +128,7 @@
     .resultsTable{
       width:100%;
       border-collapse:collapse;
-      min-width:820px;
+      min-width:900px;
     }
 
     .resultsTable th,
@@ -146,6 +146,17 @@
 
     .resultsTable tr:last-child td{
       border-bottom:none;
+    }
+
+    .phaseCell{
+      font-weight:600;
+      white-space:nowrap;
+      background:rgba(255,255,255,.02);
+    }
+
+    .metricCell{
+      padding-left:1.5rem;
+      white-space:nowrap;
     }
 
     .mutedBox{
@@ -328,7 +339,8 @@
                 <table class="resultsTable">
                   <thead>
                     <tr>
-                      <th>Phase / Metric</th>
+                      <th>Phase</th>
+                      <th>Metric</th>
                       <th>Baseline Status</th>
                       <th>Baseline Value</th>
                       <th>Comparison Status</th>
@@ -463,7 +475,7 @@
     PPG: {
       sourceKey: 'ppgFeatures',
       tableMetrics: ['meanHr', 'stdHr', 'sdnn', 'rmssd'],
-      chartMetrics: ['stdHr', 'sdnn', 'rmssd'],
+      chartMetrics: ['sdnn', 'rmssd'],
       labels: {
         meanHr: 'Mean HR',
         stdHr: 'STD HR',
@@ -832,7 +844,8 @@
         const tr = document.createElement('tr');
 
         tr.innerHTML = `
-          <td>${idx === 0 ? bRow.phaseLabel : '&nbsp;&nbsp;&nbsp;↳ ' + group.labels[metricKey]}</td>
+          <td class="phaseCell">${idx === 0 ? bRow.phaseLabel : ''}</td>
+          <td class="metricCell">${group.labels[metricKey]}</td>
           <td>${bRow.status}</td>
           <td>${numericOrDash(bRow[metricKey], digits)}</td>
           <td>${cRow ? cRow.status : '—'}</td>
