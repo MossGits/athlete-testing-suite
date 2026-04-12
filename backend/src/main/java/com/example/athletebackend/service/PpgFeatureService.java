@@ -12,7 +12,6 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -50,7 +49,7 @@ public class PpgFeatureService {
             if (maybeFile.isEmpty()) {
                 ppgFeatures.put(kind, Map.of(
                         "status", "missing",
-                        "message", "No uploaded file found for this phase"
+                        "message", "No uploaded PPG file found for this phase"
                 ));
                 continue;
             }
@@ -63,7 +62,8 @@ public class PpgFeatureService {
                         "meanHr", features.meanHr(),
                         "stdHr", features.stdHr(),
                         "sdnn", features.sdnn(),
-                        "rmssd", features.rmssd()
+                        "rmssd", features.rmssd(),
+                        "sampleRateHz", features.sampleRateHz()
                 ));
             } catch (Exception ex) {
                 ppgFeatures.put(kind, Map.of(
@@ -105,60 +105,29 @@ public class PpgFeatureService {
     }
 
     private PhaseFeatures processOnePhase(SessionFile sf) throws Exception {
-        List<Long> timestamps = new ArrayList<>();
-        List<Double> irSignal = new ArrayList<>();
+        ParsedPpg parsed = parseCsv(gunzip(sf.getData()));
 
-        byte[] rawCsv = gunzip(sf.getData());
-
-        try (BufferedReader br = new BufferedReader(
-                new InputStreamReader(new ByteArrayInputStream(rawCsv), StandardCharsets.UTF_8))) {
-
-            String header = br.readLine();
-            if (header == null || header.isBlank()) {
-                throw new IllegalArgumentException("CSV is empty");
-            }
-
-            String line;
-            while ((line = br.readLine()) != null) {
-                if (line.isBlank()) continue;
-
-                String[] parts = line.split(",", -1);
-                if (parts.length < 4) continue;
-
-                long t = Long.parseLong(parts[0].trim());
-                double ir = Double.parseDouble(parts[2].trim());
-
-                timestamps.add(t);
-                irSignal.add(ir);
-            }
-        }
-
-        if (timestamps.size() < 10) {
+        if (parsed.timestampsMs().length < 10) {
             throw new IllegalArgumentException("Not enough PPG samples");
         }
 
-        long[] t = timestamps.stream().mapToLong(Long::longValue).toArray();
-        double[] x = irSignal.stream().mapToDouble(Double::doubleValue).toArray();
-
-        double estimatedFs = estimateSampleRateHz(t);
-        if (!Double.isFinite(estimatedFs) || estimatedFs <= 0) {
-            throw new IllegalArgumentException("Could not estimate sample rate");
+        double fs = estimateSampleRateHz(parsed.timestampsMs());
+        if (!Double.isFinite(fs) || fs <= 0.0) {
+            throw new IllegalArgumentException("Could not estimate PPG sample rate");
         }
 
-        // Light approximation of the MATLAB preprocessing for now:
-        // - remove mean
-        // - band-limit approximation via smoothing / detrending
-        //
-        // Since you're still evolving the processing pipeline, this keeps the
-        // integration simple and stable. We can swap in a stricter digital filter later.
-        x = removeMean(x);
-        x = movingAverage(x, 2);
-        x = removeSlowTrend(x, 12);
+        double[] signal = parsed.signal();
 
-        int minPeakDistanceSamples = Math.max(1, (int) Math.round(0.5 * estimatedFs));
-        double minPeakHeight = mean(x);
+        // Approximate 0.5-4 Hz bandpass:
+        // high-pass by removing slow trend, then low-pass smoothing.
+        signal = removeSlowTrend(signal, Math.max(3, (int) Math.round(fs / 2.0)));
+        signal = lowPassSinglePole(signal, fs, 4.0);
+        signal = removeMean(signal);
 
-        List<Integer> peakLocs = findPeaks(x, minPeakDistanceSamples, minPeakHeight);
+        int minPeakDistanceSamples = Math.max(1, (int) Math.round(0.5 * fs));
+        double minPeakHeight = mean(signal);
+
+        List<Integer> peakLocs = findPeaks(signal, minPeakDistanceSamples, minPeakHeight);
 
         if (peakLocs.size() < 2) {
             throw new IllegalArgumentException("Too few peaks detected");
@@ -169,7 +138,7 @@ public class PpgFeatureService {
             int prev = peakLocs.get(i - 1);
             int curr = peakLocs.get(i);
 
-            double dtSeconds = (t[curr] - t[prev]) / 1000.0;
+            double dtSeconds = (parsed.timestampsMs()[curr] - parsed.timestampsMs()[prev]) / 1000.0;
             if (dtSeconds > 0.3 && dtSeconds < 2.0) {
                 rrIntervals.add(dtSeconds);
             }
@@ -189,7 +158,49 @@ public class PpgFeatureService {
                 mean(hr),
                 std(hr),
                 std(rrIntervals),
-                rmssd(rrIntervals)
+                rmssd(rrIntervals),
+                fs
+        );
+    }
+
+    private ParsedPpg parseCsv(byte[] rawCsv) throws Exception {
+        List<Long> timestamps = new ArrayList<>();
+        List<Double> irSignal = new ArrayList<>();
+
+        try (BufferedReader br = new BufferedReader(
+                new InputStreamReader(new ByteArrayInputStream(rawCsv), StandardCharsets.UTF_8))) {
+
+            String header = br.readLine();
+            if (header == null || header.isBlank()) {
+                throw new IllegalArgumentException("CSV is empty");
+            }
+
+            String line;
+            while ((line = br.readLine()) != null) {
+                if (line.isBlank()) continue;
+
+                String[] parts = line.split(",", -1);
+                if (parts.length < 4) continue;
+
+                long t = Long.parseLong(parts[0].trim());
+
+                // Matches your current service assumption:
+                // column 0 = timestamp, column 1/2/3 = PPG channels
+                // current code uses parts[2] as the working signal
+                double ir = Double.parseDouble(parts[2].trim());
+
+                timestamps.add(t);
+                irSignal.add(ir);
+            }
+        }
+
+        if (timestamps.size() < 2) {
+            throw new IllegalArgumentException("Not enough PPG samples in CSV");
+        }
+
+        return new ParsedPpg(
+                timestamps.stream().mapToLong(Long::longValue).toArray(),
+                irSignal.stream().mapToDouble(Double::doubleValue).toArray()
         );
     }
 
@@ -245,6 +256,21 @@ public class PpgFeatureService {
         return out;
     }
 
+    private static double[] lowPassSinglePole(double[] signal, double fs, double cutoffHz) {
+        if (signal.length == 0) return signal;
+
+        double dt = 1.0 / fs;
+        double rc = 1.0 / (2.0 * Math.PI * cutoffHz);
+        double alpha = dt / (rc + dt);
+
+        double[] out = new double[signal.length];
+        out[0] = signal[0];
+        for (int i = 1; i < signal.length; i++) {
+            out[i] = out[i - 1] + alpha * (signal[i] - out[i - 1]);
+        }
+        return out;
+    }
+
     private static List<Integer> findPeaks(double[] x, int minPeakDistanceSamples, double minPeakHeight) {
         List<Integer> peaks = new ArrayList<>();
         int lastAccepted = -minPeakDistanceSamples - 1;
@@ -272,7 +298,9 @@ public class PpgFeatureService {
 
     private static double mean(double[] x) {
         if (x.length == 0) return Double.NaN;
-        return Arrays.stream(x).average().orElse(Double.NaN);
+        double sum = 0.0;
+        for (double v : x) sum += v;
+        return sum / x.length;
     }
 
     private static double mean(List<Double> x) {
@@ -319,11 +347,14 @@ public class PpgFeatureService {
         }
     }
 
+    private record ParsedPpg(long[] timestampsMs, double[] signal) {}
+
     private record PhaseFeatures(
             int detectedPeaks,
             double meanHr,
             double stdHr,
             double sdnn,
-            double rmssd
+            double rmssd,
+            double sampleRateHz
     ) {}
 }
