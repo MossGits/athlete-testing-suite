@@ -857,125 +857,182 @@
     });
   }
 
-  function drawComparisonChart(sensorKey) {
-    const { ctx, width: w, height: h } = getCanvasContext();
-    ctx.clearRect(0, 0, w, h);
+function drawComparisonChart(sensorKey) {
+  const { ctx, width: w, height: h } = getCanvasContext();
+  ctx.clearRect(0, 0, w, h);
 
-    const colors = getChartColors();
-    const group = SENSOR_GROUPS[sensorKey];
+  const colors = getChartColors();
+  const group = SENSOR_GROUPS[sensorKey];
 
-    const baselineRows = baselineProcessedResult ? getSensorRowsFromProcessed(baselineProcessedResult, sensorKey) : [];
-    const comparisonRows = comparisonProcessedResult ? getSensorRowsFromProcessed(comparisonProcessedResult, sensorKey) : [];
-    const comparisonMap = new Map(comparisonRows.map(r => [r.key, r]));
+  const baselineRows = baselineProcessedResult ? getSensorRowsFromProcessed(baselineProcessedResult, sensorKey) : [];
+  const comparisonRows = comparisonProcessedResult ? getSensorRowsFromProcessed(comparisonProcessedResult, sensorKey) : [];
+  const comparisonMap = new Map(comparisonRows.map(r => [r.key, r]));
 
-    if (!baselineRows.length) {
-      ctx.fillStyle = colors.text;
-      ctx.font = '16px sans-serif';
-      ctx.fillText('No baseline data available.', 40, 40);
-      return;
-    }
+  if (!baselineRows.length) {
+    ctx.fillStyle = colors.text;
+    ctx.font = '16px sans-serif';
+    ctx.fillText('No baseline data available.', 40, 40);
+    return;
+  }
 
-    const flat = [];
+  const isEeg = sensorKey === 'EEG';
+
+  const items = [];
+  if (isEeg) {
+    group.chartMetrics.forEach(metricKey => {
+      baselineRows.forEach(bRow => {
+        const cRow = comparisonMap.get(bRow.key) || {};
+        const bVal = (typeof bRow[metricKey] === 'number' && Number.isFinite(bRow[metricKey])) ? bRow[metricKey] : null;
+        const cVal = (typeof cRow[metricKey] === 'number' && Number.isFinite(cRow[metricKey])) ? cRow[metricKey] : null;
+
+        items.push({
+          metricKey,
+          metricLabel: group.labels[metricKey],
+          phaseLabel: bRow.phaseLabel,
+          shortPhaseLabel: bRow.phaseLabel.replace('Postural ', 'Post. '),
+          baseline: bVal,
+          comparison: cVal
+        });
+      });
+    });
+  } else {
     baselineRows.forEach(bRow => {
       const cRow = comparisonMap.get(bRow.key) || {};
       group.chartMetrics.forEach(metricKey => {
         const bVal = (typeof bRow[metricKey] === 'number' && Number.isFinite(bRow[metricKey])) ? bRow[metricKey] : null;
         const cVal = (typeof cRow[metricKey] === 'number' && Number.isFinite(cRow[metricKey])) ? cRow[metricKey] : null;
 
-        flat.push({
-          shortLabel: `${bRow.phaseLabel.replace('Postural ', 'Post. ')} ${group.labels[metricKey]}`,
+        items.push({
+          metricKey,
+          metricLabel: group.labels[metricKey],
+          phaseLabel: bRow.phaseLabel,
+          shortPhaseLabel: `${bRow.phaseLabel.replace('Postural ', 'Post. ')} ${group.labels[metricKey]}`,
           baseline: bVal,
           comparison: cVal
         });
       });
     });
+  }
 
-    const values = [];
-    flat.forEach(p => {
-      if (p.baseline != null) values.push(p.baseline);
-      if (p.comparison != null) values.push(p.comparison);
-    });
+  const values = [];
+  items.forEach(p => {
+    if (p.baseline != null) values.push(p.baseline);
+    if (p.comparison != null) values.push(p.comparison);
+  });
 
-    if (!values.length) {
-      ctx.fillStyle = colors.text;
-      ctx.font = '16px sans-serif';
-      ctx.fillText('No valid values available for this sensor.', 40, 40);
-      return;
-    }
-
-    const margin = { top: 32, right: 30, bottom: 170, left: 80 };
-    const plotW = w - margin.left - margin.right;
-    const plotH = h - margin.top - margin.bottom;
-
-    const maxVal = Math.max(...values);
-    const yMax = maxVal > 0 ? maxVal * 1.18 : 1;
-
-    function yFor(v) {
-      return margin.top + plotH - (v / yMax) * plotH;
-    }
-
-    ctx.strokeStyle = colors.grid;
-    ctx.lineWidth = 1;
-    for (let i = 0; i <= 5; i++) {
-      const y = margin.top + (plotH * i / 5);
-      ctx.beginPath();
-      ctx.moveTo(margin.left, y);
-      ctx.lineTo(w - margin.right, y);
-      ctx.stroke();
-    }
-
-    ctx.beginPath();
-    ctx.moveTo(margin.left, margin.top);
-    ctx.lineTo(margin.left, h - margin.bottom);
-    ctx.lineTo(w - margin.right, h - margin.bottom);
-    ctx.strokeStyle = colors.axis;
-    ctx.stroke();
-
+  if (!values.length) {
     ctx.fillStyle = colors.text;
-    ctx.font = '12px sans-serif';
-    ctx.textAlign = 'right';
-    ctx.textBaseline = 'middle';
-    for (let i = 0; i <= 5; i++) {
-      const frac = i / 5;
-      const v = yMax - yMax * frac;
-      const y = margin.top + plotH * frac;
-      ctx.fillText(v.toFixed(4), margin.left - 8, y);
-    }
+    ctx.font = '16px sans-serif';
+    ctx.fillText('No valid values available for this sensor.', 40, 40);
+    return;
+  }
 
-    const itemCount = flat.length;
-    const slotWidth = plotW / Math.max(itemCount, 1);
-    const barWidth = Math.min(18, slotWidth * 0.22);
+  const margin = isEeg
+    ? { top: 60, right: 30, bottom: 170, left: 80 }
+    : { top: 32, right: 30, bottom: 170, left: 80 };
 
-    flat.forEach((p, i) => {
-      const centerX = margin.left + slotWidth * i + slotWidth / 2;
-      const baselineX = centerX - barWidth - 3;
-      const comparisonX = centerX + 3;
+  const plotW = w - margin.left - margin.right;
+  const plotH = h - margin.top - margin.bottom;
 
-      ctx.save();
-      ctx.translate(centerX, h - margin.bottom + 14);
-      ctx.rotate(-Math.PI / 3.2);
+  const maxVal = Math.max(...values);
+  const yMax = maxVal > 0 ? maxVal * 1.18 : 1;
+
+  function yFor(v) {
+    return margin.top + plotH - (v / yMax) * plotH;
+  }
+
+  ctx.strokeStyle = colors.grid;
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 5; i++) {
+    const y = margin.top + (plotH * i / 5);
+    ctx.beginPath();
+    ctx.moveTo(margin.left, y);
+    ctx.lineTo(w - margin.right, y);
+    ctx.stroke();
+  }
+
+  ctx.beginPath();
+  ctx.moveTo(margin.left, margin.top);
+  ctx.lineTo(margin.left, h - margin.bottom);
+  ctx.lineTo(w - margin.right, h - margin.bottom);
+  ctx.strokeStyle = colors.axis;
+  ctx.stroke();
+
+  ctx.fillStyle = colors.text;
+  ctx.font = '12px sans-serif';
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  for (let i = 0; i <= 5; i++) {
+    const frac = i / 5;
+    const v = yMax - yMax * frac;
+    const y = margin.top + plotH * frac;
+    ctx.fillText(v.toFixed(4), margin.left - 8, y);
+  }
+
+  const itemCount = items.length;
+  const slotWidth = plotW / Math.max(itemCount, 1);
+  const barWidth = Math.min(18, slotWidth * 0.22);
+
+  if (isEeg) {
+    const metricCount = group.chartMetrics.length;
+    const phaseCount = baselineRows.length;
+
+    group.chartMetrics.forEach((metricKey, metricIdx) => {
+      const startIndex = metricIdx * phaseCount;
+      const endIndex = startIndex + phaseCount - 1;
+
+      const startCenterX = margin.left + slotWidth * startIndex + slotWidth / 2;
+      const endCenterX = margin.left + slotWidth * endIndex + slotWidth / 2;
+      const groupCenterX = (startCenterX + endCenterX) / 2;
+      const dividerX = endCenterX + slotWidth / 2;
+
       ctx.fillStyle = colors.text;
-      ctx.font = '11px sans-serif';
-      ctx.textAlign = 'right';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(p.shortLabel, 0, 0);
-      ctx.restore();
+      ctx.font = 'bold 13px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(group.labels[metricKey], groupCenterX, margin.top - 10);
 
-      if (p.baseline != null) {
-        const y = yFor(p.baseline);
-        const height = h - margin.bottom - y;
-        ctx.fillStyle = colors.baselineBar;
-        ctx.fillRect(baselineX, y, barWidth, height);
-      }
-
-      if (p.comparison != null) {
-        const y = yFor(p.comparison);
-        const height = h - margin.bottom - y;
-        ctx.fillStyle = colors.comparisonBar;
-        ctx.fillRect(comparisonX, y, barWidth, height);
+      if (metricIdx < metricCount - 1) {
+        ctx.strokeStyle = 'rgba(0,0,0,0.18)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(dividerX, margin.top - 2);
+        ctx.lineTo(dividerX, h - margin.bottom);
+        ctx.stroke();
       }
     });
   }
+
+  items.forEach((p, i) => {
+    const centerX = margin.left + slotWidth * i + slotWidth / 2;
+    const baselineX = centerX - barWidth - 3;
+    const comparisonX = centerX + 3;
+
+    ctx.save();
+    ctx.translate(centerX, h - margin.bottom + 14);
+    ctx.rotate(-Math.PI / 3.2);
+    ctx.fillStyle = colors.text;
+    ctx.font = '11px sans-serif';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(isEeg ? p.shortPhaseLabel : p.shortPhaseLabel, 0, 0);
+    ctx.restore();
+
+    if (p.baseline != null) {
+      const y = yFor(p.baseline);
+      const height = h - margin.bottom - y;
+      ctx.fillStyle = colors.baselineBar;
+      ctx.fillRect(baselineX, y, barWidth, height);
+    }
+
+    if (p.comparison != null) {
+      const y = yFor(p.comparison);
+      const height = h - margin.bottom - y;
+      ctx.fillStyle = colors.comparisonBar;
+      ctx.fillRect(comparisonX, y, barWidth, height);
+    }
+  });
+}
 
   function renderComparisonView() {
     const emptyEl = document.getElementById('resultsEmptyState');
