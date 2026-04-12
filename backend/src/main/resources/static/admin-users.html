@@ -321,10 +321,6 @@
                     <span class="legendSwatch" id="comparisonSwatch" style="background:rgba(37,99,235,0.9)"></span>
                     <span id="comparisonLegendLabel">Comparison</span>
                   </div>
-                  <div class="legendItem">
-                    <span style="display:inline-block;width:18px;height:2px;background:rgba(220,38,38,0.95);position:relative;top:-1px;"></span>
-                    <span>Delta / error bar</span>
-                  </div>
                 </div>
               </div>
 
@@ -465,9 +461,8 @@
     },
     PPG: {
       sourceKey: 'ppgFeatures',
-      metrics: ['meanHr', 'stdHr', 'sdnn', 'rmssd'],
+      metrics: ['stdHr', 'sdnn', 'rmssd'],
       labels: {
-        meanHr: 'Mean HR',
         stdHr: 'STD HR',
         sdnn: 'SDNN',
         rmssd: 'RMSSD'
@@ -730,8 +725,7 @@
       text: 'rgba(0,0,0,1)',
       label: 'rgba(0,0,0,1)',
       baselineBar: 'rgba(59,130,246,0.45)',
-      comparisonBar: 'rgba(37,99,235,0.90)',
-      deltaLine: 'rgba(220,38,38,0.95)'
+      comparisonBar: 'rgba(37,99,235,0.90)'
     };
   }
 
@@ -871,7 +865,6 @@
         const cVal = (typeof cRow[metricKey] === 'number' && Number.isFinite(cRow[metricKey])) ? cRow[metricKey] : null;
 
         flat.push({
-          label: `${bRow.phaseLabel} ${group.labels[metricKey]}`,
           shortLabel: `${bRow.phaseLabel.replace('Postural ', 'Post. ')} ${group.labels[metricKey]}`,
           baseline: bVal,
           comparison: cVal
@@ -950,15 +943,11 @@
       ctx.fillText(p.shortLabel, 0, 0);
       ctx.restore();
 
-      let baselineTopY = null;
-      let comparisonTopY = null;
-
       if (p.baseline != null) {
         const y = yFor(p.baseline);
         const height = h - margin.bottom - y;
         ctx.fillStyle = colors.baselineBar;
         ctx.fillRect(baselineX, y, barWidth, height);
-        baselineTopY = y;
       }
 
       if (p.comparison != null) {
@@ -966,27 +955,6 @@
         const height = h - margin.bottom - y;
         ctx.fillStyle = colors.comparisonBar;
         ctx.fillRect(comparisonX, y, barWidth, height);
-        comparisonTopY = y;
-      }
-
-      if (baselineTopY != null && comparisonTopY != null) {
-        const xMid = centerX;
-        const yTop = Math.min(baselineTopY, comparisonTopY);
-        const yBottom = Math.max(baselineTopY, comparisonTopY);
-
-        ctx.strokeStyle = colors.deltaLine;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(xMid, yTop);
-        ctx.lineTo(xMid, yBottom);
-        ctx.stroke();
-
-        ctx.beginPath();
-        ctx.moveTo(xMid - 5, yTop);
-        ctx.lineTo(xMid + 5, yTop);
-        ctx.moveTo(xMid - 5, yBottom);
-        ctx.lineTo(xMid + 5, yBottom);
-        ctx.stroke();
       }
     });
   }
