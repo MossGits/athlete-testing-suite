@@ -112,7 +112,7 @@
 
     .metricChart{
       width:100%;
-      height:360px;
+      height:420px;
       display:block;
       border-radius:10px;
       background:rgba(255,255,255,.02);
@@ -128,7 +128,7 @@
     .resultsTable{
       width:100%;
       border-collapse:collapse;
-      min-width:760px;
+      min-width:820px;
     }
 
     .resultsTable th,
@@ -243,7 +243,6 @@
 
   <div id="msg" class="msg" style="margin-bottom: .75rem;"></div>
 
-  <!-- ATHLETE VIEW -->
   <div id="athleteView" class="card" hidden>
     <h2>Diagnostic Tests</h2>
     <p class="note" style="margin-top:.25rem;">
@@ -263,7 +262,6 @@
     </div>
   </div>
 
-  <!-- TRAINER VIEW -->
   <div id="trainerView" class="card" hidden>
     <h2>Trainer Dashboard</h2>
     <p class="note" style="margin-top:.25rem;">
@@ -271,7 +269,6 @@
     </p>
 
     <div class="trainerLayout">
-      <!-- LEFT COLUMN -->
       <div class="stack">
         <div id="athletesPanel" class="panelCard">
           <h3 style="margin-top:0;">Athletes</h3>
@@ -303,17 +300,12 @@
 
               <div class="chartWrap">
                 <div class="chartControls">
-                  <label for="metricSelect">Metric</label>
-                  <select id="metricSelect">
-                    <option value="meanHr">Mean HR</option>
-                    <option value="stdHr">STD HR</option>
-                    <option value="sdnn">SDNN</option>
-                    <option value="rmssd">RMSSD</option>
-                    <option value="delta">Relative Delta Power</option>
-                    <option value="theta">Relative Theta Power</option>
-                    <option value="alpha">Relative Alpha Power</option>
-                    <option value="beta">Relative Beta Power</option>
-                    <option value="gamma">Relative Gamma Power</option>
+                  <label for="sensorSelect">Sensor</label>
+                  <select id="sensorSelect">
+                    <option value="EEG">EEG</option>
+                    <option value="PPG">Cardiovascular (PPG)</option>
+                    <option value="ACC">Postural Sway (ACC)</option>
+                    <option value="GYRO">Rotational Sway (GYRO)</option>
                   </select>
                   <span id="resultsTitle" class="pill">No athlete selected</span>
                 </div>
@@ -340,7 +332,7 @@
                 <table class="resultsTable">
                   <thead>
                     <tr>
-                      <th>Phase</th>
+                      <th>Phase / Metric</th>
                       <th>Baseline Status</th>
                       <th>Baseline Value</th>
                       <th>Comparison Status</th>
@@ -358,7 +350,6 @@
         </div>
       </div>
 
-      <!-- RIGHT COLUMN -->
       <div class="stack">
         <div class="panelCard">
           <div class="selectedAthleteHeader">
@@ -440,23 +431,62 @@
     PPG_POSTURALBOTH: 'Postural Both',
     PPG_POSTURALLEFT: 'Postural Left',
     PPG_POSTURALRIGHT: 'Postural Right',
+
     EEG_GONOGO: 'Go / No-Go',
     EEG_ONEBACK: '1-Back',
     EEG_POSTURALBOTH: 'Postural Both',
     EEG_POSTURALLEFT: 'Postural Left',
-    EEG_POSTURALRIGHT: 'Postural Right'
+    EEG_POSTURALRIGHT: 'Postural Right',
+
+    ACC_GONOGO: 'Go / No-Go',
+    ACC_ONEBACK: '1-Back',
+    ACC_POSTURALBOTH: 'Postural Both',
+    ACC_POSTURALLEFT: 'Postural Left',
+    ACC_POSTURALRIGHT: 'Postural Right',
+
+    GYRO_GONOGO: 'Go / No-Go',
+    GYRO_ONEBACK: '1-Back',
+    GYRO_POSTURALBOTH: 'Postural Both',
+    GYRO_POSTURALLEFT: 'Postural Left',
+    GYRO_POSTURALRIGHT: 'Postural Right'
   };
 
-  const METRIC_LABELS = {
-    meanHr: 'Mean HR',
-    stdHr: 'STD HR',
-    sdnn: 'SDNN',
-    rmssd: 'RMSSD',
-    delta: 'Relative Delta Power',
-    theta: 'Relative Theta Power',
-    alpha: 'Relative Alpha Power',
-    beta: 'Relative Beta Power',
-    gamma: 'Relative Gamma Power'
+  const SENSOR_GROUPS = {
+    EEG: {
+      sourceKey: 'eegFeatures',
+      metrics: ['delta', 'theta', 'alpha', 'beta', 'gamma'],
+      labels: {
+        delta: 'Delta',
+        theta: 'Theta',
+        alpha: 'Alpha',
+        beta: 'Beta',
+        gamma: 'Gamma'
+      }
+    },
+    PPG: {
+      sourceKey: 'ppgFeatures',
+      metrics: ['meanHr', 'stdHr', 'sdnn', 'rmssd'],
+      labels: {
+        meanHr: 'Mean HR',
+        stdHr: 'STD HR',
+        sdnn: 'SDNN',
+        rmssd: 'RMSSD'
+      }
+    },
+    ACC: {
+      sourceKey: 'accFeatures',
+      metrics: ['rmsSway'],
+      labels: {
+        rmsSway: 'RMS Sway'
+      }
+    },
+    GYRO: {
+      sourceKey: 'gyroFeatures',
+      metrics: ['rmsSway'],
+      labels: {
+        rmsSway: 'RMS Sway'
+      }
+    }
   };
 
   let activeModal = {
@@ -661,13 +691,18 @@
     if (modal && !modal.classList.contains('hidden')) closeTestModal();
   });
 
-  function phaseOrder() {
+  function currentSensorKey() {
+    const el = document.getElementById('sensorSelect');
+    return el ? el.value : 'EEG';
+  }
+
+  function phaseOrderForSensor(sensorKey) {
     return [
-      'PPG_GONOGO',
-      'PPG_ONEBACK',
-      'PPG_POSTURALBOTH',
-      'PPG_POSTURALLEFT',
-      'PPG_POSTURALRIGHT'
+      `${sensorKey}_GONOGO`,
+      `${sensorKey}_ONEBACK`,
+      `${sensorKey}_POSTURALBOTH`,
+      `${sensorKey}_POSTURALLEFT`,
+      `${sensorKey}_POSTURALRIGHT`
     ];
   }
 
@@ -681,6 +716,11 @@
     if (typeof b !== 'number' || !Number.isFinite(b)) return '—';
     const d = b - a;
     return `${d >= 0 ? '+' : ''}${d.toFixed(digits)}`;
+  }
+
+  function digitsForMetric(metricKey) {
+    if (['sdnn', 'rmssd', 'delta', 'theta', 'alpha', 'beta', 'gamma', 'rmsSway'].includes(metricKey)) return 4;
+    return 2;
   }
 
   function getChartColors() {
@@ -762,7 +802,7 @@
     const rect = canvas.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
     const cssWidth = Math.max(300, Math.floor(rect.width || 980));
-    const cssHeight = Math.max(260, Math.floor(rect.height || 360));
+    const cssHeight = Math.max(260, Math.floor(rect.height || 420));
     canvas.width = Math.floor(cssWidth * dpr);
     canvas.height = Math.floor(cssHeight * dpr);
     const ctx = canvas.getContext('2d');
@@ -775,71 +815,62 @@
     ctx.clearRect(0, 0, width, height);
   }
 
-  function buildRowsFromProcessed(data, metricKey = 'meanHr') {
-    const isEegMetric = ['delta', 'theta', 'alpha', 'beta', 'gamma'].includes(metricKey);
-    const features = isEegMetric ? (data?.eegFeatures || {}) : (data?.ppgFeatures || {});
+  function getSensorRowsFromProcessed(data, sensorKey) {
+    const group = SENSOR_GROUPS[sensorKey];
+    const features = data?.[group.sourceKey] || {};
 
-    return phaseOrder().map(kind => {
-      const lookupKey = isEegMetric ? kind.replace('PPG_', 'EEG_') : kind;
-      const raw = features[lookupKey] || {};
-
+    return phaseOrderForSensor(sensorKey).map(kind => {
+      const raw = features[kind] || {};
       return {
-        key: lookupKey,
-        phaseLabel: PHASE_LABELS[lookupKey] || PHASE_LABELS[kind] || kind,
+        key: kind,
+        phaseLabel: PHASE_LABELS[kind] || kind,
         status: raw.status || 'missing',
-        detectedPeaks: raw.detectedPeaks,
-        meanHr: raw.meanHr,
-        stdHr: raw.stdHr,
-        sdnn: raw.sdnn,
-        rmssd: raw.rmssd,
-        delta: raw.delta,
-        theta: raw.theta,
-        alpha: raw.alpha,
-        beta: raw.beta,
-        gamma: raw.gamma,
-        message: raw.message || ''
+        message: raw.message || '',
+        ...raw
       };
     });
   }
 
-  function getRowsForMetric(data, metricKey) {
-    return buildRowsFromProcessed(data, metricKey).map(row => ({
-      ...row,
-      metricValue: row[metricKey]
-    }));
-  }
-
-  function renderResultsTable(metricKey) {
+  function renderResultsTable(sensorKey) {
     const tableBody = document.getElementById('resultsTableBody');
     tableBody.innerHTML = '';
 
-    const baselineRows = baselineProcessedResult ? getRowsForMetric(baselineProcessedResult, metricKey) : [];
-    const comparisonRows = comparisonProcessedResult ? getRowsForMetric(comparisonProcessedResult, metricKey) : [];
+    const group = SENSOR_GROUPS[sensorKey];
+    const baselineRows = baselineProcessedResult ? getSensorRowsFromProcessed(baselineProcessedResult, sensorKey) : [];
+    const comparisonRows = comparisonProcessedResult ? getSensorRowsFromProcessed(comparisonProcessedResult, sensorKey) : [];
     const comparisonMap = new Map(comparisonRows.map(r => [r.key, r]));
-    const digits = ['sdnn', 'rmssd', 'delta', 'theta', 'alpha', 'beta', 'gamma'].includes(metricKey) ? 4 : 2;
 
     baselineRows.forEach(bRow => {
       const cRow = comparisonMap.get(bRow.key) || null;
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>${bRow.phaseLabel}</td>
-        <td>${bRow.status}</td>
-        <td>${numericOrDash(bRow.metricValue, digits)}</td>
-        <td>${cRow ? cRow.status : '—'}</td>
-        <td>${cRow ? numericOrDash(cRow.metricValue, digits) : '—'}</td>
-        <td>${cRow ? numericDeltaOrDash(bRow.metricValue, cRow.metricValue, digits) : '—'}</td>
-      `;
-      tableBody.appendChild(tr);
+
+      group.metrics.forEach((metricKey, idx) => {
+        const digits = digitsForMetric(metricKey);
+        const tr = document.createElement('tr');
+
+        tr.innerHTML = `
+          <td>${idx === 0 ? bRow.phaseLabel : '&nbsp;&nbsp;&nbsp;↳ ' + group.labels[metricKey]}</td>
+          <td>${bRow.status}</td>
+          <td>${numericOrDash(bRow[metricKey], digits)}</td>
+          <td>${cRow ? cRow.status : '—'}</td>
+          <td>${cRow ? numericOrDash(cRow[metricKey], digits) : '—'}</td>
+          <td>${cRow ? numericDeltaOrDash(bRow[metricKey], cRow[metricKey], digits) : '—'}</td>
+        `;
+        tableBody.appendChild(tr);
+      });
     });
   }
 
-  function drawComparisonChart(metricKey) {
+  function drawComparisonChart(sensorKey) {
     const { ctx, width: w, height: h } = getCanvasContext();
     ctx.clearRect(0, 0, w, h);
 
     const colors = getChartColors();
+    const group = SENSOR_GROUPS[sensorKey];
 
-    const baselineRows = baselineProcessedResult ? getRowsForMetric(baselineProcessedResult, metricKey) : [];
+    const baselineRows = baselineProcessedResult ? getSensorRowsFromProcessed(baselineProcessedResult, sensorKey) : [];
+    const comparisonRows = comparisonProcessedResult ? getSensorRowsFromProcessed(comparisonProcessedResult, sensorKey) : [];
+    const comparisonMap = new Map(comparisonRows.map(r => [r.key, r]));
+
     if (!baselineRows.length) {
       ctx.fillStyle = colors.text;
       ctx.font = '16px sans-serif';
@@ -847,21 +878,25 @@
       return;
     }
 
-    const comparisonRows = comparisonProcessedResult ? getRowsForMetric(comparisonProcessedResult, metricKey) : [];
-    const comparisonMap = new Map(comparisonRows.map(r => [r.key, r]));
-    const digits = ['sdnn', 'rmssd', 'delta', 'theta', 'alpha', 'beta', 'gamma'].includes(metricKey) ? 4 : 2;
+    const flat = [];
+    baselineRows.forEach(bRow => {
+      const cRow = comparisonMap.get(bRow.key) || {};
+      group.metrics.forEach(metricKey => {
+        const bVal = (typeof bRow[metricKey] === 'number' && Number.isFinite(bRow[metricKey])) ? bRow[metricKey] : null;
+        const cVal = (typeof cRow[metricKey] === 'number' && Number.isFinite(cRow[metricKey])) ? cRow[metricKey] : null;
 
-    const paired = baselineRows.map(b => {
-      const c = comparisonMap.get(b.key);
-      return {
-        phaseLabel: b.phaseLabel,
-        baseline: (typeof b.metricValue === 'number' && Number.isFinite(b.metricValue)) ? b.metricValue : null,
-        comparison: c && typeof c.metricValue === 'number' && Number.isFinite(c.metricValue) ? c.metricValue : null
-      };
+        flat.push({
+          label: `${bRow.phaseLabel} ${group.labels[metricKey]}`,
+          shortLabel: `${bRow.phaseLabel.replace('Postural ', 'Post. ')} ${group.labels[metricKey]}`,
+          baseline: bVal,
+          comparison: cVal,
+          digits: digitsForMetric(metricKey)
+        });
+      });
     });
 
     const values = [];
-    paired.forEach(p => {
+    flat.forEach(p => {
       if (p.baseline != null) values.push(p.baseline);
       if (p.comparison != null) values.push(p.comparison);
     });
@@ -869,11 +904,11 @@
     if (!values.length) {
       ctx.fillStyle = colors.text;
       ctx.font = '16px sans-serif';
-      ctx.fillText('No valid values available for this metric.', 40, 40);
+      ctx.fillText('No valid values available for this sensor.', 40, 40);
       return;
     }
 
-    const margin = { top: 32, right: 26, bottom: 86, left: 76 };
+    const margin = { top: 32, right: 26, bottom: 120, left: 76 };
     const plotW = w - margin.left - margin.right;
     const plotH = h - margin.top - margin.bottom;
 
@@ -909,24 +944,27 @@
       const frac = i / 5;
       const v = yMax - yMax * frac;
       const y = margin.top + plotH * frac;
-      ctx.fillText(v.toFixed(digits), margin.left - 8, y);
+      ctx.fillText(v.toFixed(4), margin.left - 8, y);
     }
 
-    const groupCount = paired.length;
-    const groupWidth = plotW / Math.max(groupCount, 1);
-    const barWidth = Math.min(32, groupWidth * 0.22);
+    const itemCount = flat.length;
+    const groupWidth = plotW / Math.max(itemCount, 1);
+    const barWidth = Math.min(24, groupWidth * 0.22);
 
-    paired.forEach((p, i) => {
+    flat.forEach((p, i) => {
       const centerX = margin.left + groupWidth * i + groupWidth / 2;
-      const baselineX = centerX - barWidth - 6;
-      const comparisonX = centerX + 6;
+      const baselineX = centerX - barWidth - 4;
+      const comparisonX = centerX + 4;
 
-      const labelY = h - margin.bottom + 14;
+      ctx.save();
+      ctx.translate(centerX, h - margin.bottom + 10);
+      ctx.rotate(-Math.PI / 4);
       ctx.fillStyle = colors.text;
-      ctx.font = '12px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'top';
-      ctx.fillText(p.phaseLabel.replace('Postural ', 'Post. '), centerX, labelY);
+      ctx.font = '11px sans-serif';
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(p.shortLabel, 0, 0);
+      ctx.restore();
 
       let baselineTopY = null;
       let comparisonTopY = null;
@@ -936,13 +974,7 @@
         const height = h - margin.bottom - y;
         ctx.fillStyle = colors.baselineBar;
         ctx.fillRect(baselineX, y, barWidth, height);
-
         baselineTopY = y;
-        ctx.fillStyle = colors.label;
-        ctx.font = '12px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'bottom';
-        ctx.fillText(p.baseline.toFixed(digits), baselineX + barWidth / 2, y - 6);
       }
 
       if (p.comparison != null) {
@@ -950,13 +982,7 @@
         const height = h - margin.bottom - y;
         ctx.fillStyle = colors.comparisonBar;
         ctx.fillRect(comparisonX, y, barWidth, height);
-
         comparisonTopY = y;
-        ctx.fillStyle = colors.label;
-        ctx.font = '12px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'bottom';
-        ctx.fillText(p.comparison.toFixed(digits), comparisonX + barWidth / 2, y - 6);
       }
 
       if (baselineTopY != null && comparisonTopY != null) {
@@ -970,21 +996,6 @@
         ctx.moveTo(xMid, yTop);
         ctx.lineTo(xMid, yBottom);
         ctx.stroke();
-
-        ctx.beginPath();
-        ctx.moveTo(xMid - 7, yTop);
-        ctx.lineTo(xMid + 7, yTop);
-        ctx.moveTo(xMid - 7, yBottom);
-        ctx.lineTo(xMid + 7, yBottom);
-        ctx.stroke();
-
-        const delta = p.comparison - p.baseline;
-        const yText = yTop - 8;
-        ctx.fillStyle = colors.deltaLine;
-        ctx.font = '12px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'bottom';
-        ctx.fillText(`${delta >= 0 ? '+' : ''}${delta.toFixed(digits)}`, xMid, yText);
       }
     });
   }
@@ -994,7 +1005,7 @@
     const contentEl = document.getElementById('resultsContent');
     const noteEl = document.getElementById('resultsNote');
     const titleEl = document.getElementById('resultsTitle');
-    const metricSelect = document.getElementById('metricSelect');
+    const sensorKey = currentSensorKey();
 
     if (!baselineProcessedResult || !baselineTestMeta) {
       emptyEl.hidden = false;
@@ -1021,14 +1032,14 @@
       ? buildSessionLabel(comparisonTestMeta)
       : 'Comparison';
 
-    renderResultsTable(metricSelect.value);
-    drawComparisonChart(metricSelect.value);
+    renderResultsTable(sensorKey);
+    drawComparisonChart(sensorKey);
 
-    const baselineRows = buildRowsFromProcessed(baselineProcessedResult, metricSelect.value);
+    const baselineRows = getSensorRowsFromProcessed(baselineProcessedResult, sensorKey);
     const okCount = baselineRows.filter(r => r.status === 'ok').length;
     noteEl.textContent = comparisonTestMeta
-      ? `Comparing ${METRIC_LABELS[metricSelect.value]} across ${okCount} baseline phase(s).`
-      : `Showing the most recent processed baseline. Click another test to compare against it.`;
+      ? `Comparing ${sensorKey} features across ${okCount} baseline phase(s).`
+      : `Showing the most recent processed ${sensorKey} baseline features. Click another test to compare against it.`;
   }
 
   async function loadProcessedFeatures(sessionId) {
@@ -1135,8 +1146,8 @@
       updateAthletePanels();
       updateTrainerButtons();
 
-      const metricSelect = document.getElementById('metricSelect');
-      metricSelect.addEventListener('change', () => {
+      const sensorSelect = document.getElementById('sensorSelect');
+      sensorSelect.addEventListener('change', () => {
         renderComparisonView();
       });
 
