@@ -6,6 +6,7 @@ import com.example.athletebackend.repo.TestSessionRepo;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -194,17 +195,17 @@ public class SessionFileController {
     }
 
     /**
-     * Delete a session AND all stored files for that session.
+     * Delete a session and let the database cascade remove dependent rows.
      *
      * DELETE /api/sessions/{sessionId}
      */
+    @Transactional
     @DeleteMapping("/{sessionId}")
     public ResponseEntity<?> deleteSession(@PathVariable UUID sessionId) {
-        // ensure session exists
-        sessions.findById(sessionId).orElseThrow();
+        if (!sessions.existsById(sessionId)) {
+            return ResponseEntity.notFound().build();
+        }
 
-        // IMPORTANT: requires SessionFileRepo.deleteAllBySessionId(UUID) to exist
-        files.deleteAllBySessionId(sessionId);
         sessions.deleteById(sessionId);
 
         return ResponseEntity.ok(Map.of(
