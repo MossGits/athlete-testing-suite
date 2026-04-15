@@ -302,6 +302,80 @@
     return new File([blob], filename, { type: "text/csv" });
   }
 
+  function rowsToCsv(lines) {
+    return lines.join("\n") + "\n";
+  }
+
+  function filterCsvLinesByWindow(lines, startMs, endMs) {
+    if (!Array.isArray(lines) || lines.length === 0) return "";
+    const header = lines[0];
+    const out = [header];
+
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i];
+      if (!line || !line.trim()) continue;
+
+      const commaIdx = line.indexOf(",");
+      if (commaIdx < 0) continue;
+
+      const t = Number(line.slice(0, commaIdx).trim());
+      if (!Number.isFinite(t)) continue;
+
+      if (t >= startMs && t < endMs) {
+        out.push(line);
+      }
+    }
+
+    return rowsToCsv(out);
+  }
+
+  function buildPosturalWindows(markerLines) {
+    const events = [];
+
+    for (let i = 1; i < markerLines.length; i++) {
+      const line = markerLines[i];
+      if (!line || !line.trim()) continue;
+
+      const commaIdx = line.indexOf(",");
+      if (commaIdx < 0) continue;
+
+      const t = Number(line.slice(0, commaIdx).trim());
+      const marker = line.slice(commaIdx + 1).trim();
+
+      if (!Number.isFinite(t) || !marker) continue;
+      events.push({ t, marker });
+    }
+
+    events.sort((a, b) => a.t - b.t);
+
+    const both = events.find(e => e.marker === "Postural_Both_Feet");
+    const left = events.find(e => e.marker === "Postural_Left_Leg");
+    const right = events.find(e => e.marker === "Postural_Right_Leg");
+    const phaseEnd = events.find(e => e.marker === "PHASE_END_POSTURAL");
+
+    if (!both || !left || !right) {
+      throw new Error("Could not split POSTURAL phase: missing posture markers.");
+    }
+
+    return [
+      {
+        suffix: "POSTURALBOTH",
+        startMs: both.t,
+        endMs: left.t
+      },
+      {
+        suffix: "POSTURALLEFT",
+        startMs: left.t,
+        endMs: right.t
+      },
+      {
+        suffix: "POSTURALRIGHT",
+        startMs: right.t,
+        endMs: phaseEnd ? phaseEnd.t : Number.MAX_SAFE_INTEGER
+      }
+    ];
+  }
+
   async function listFiles() {
     if (!sessionId) return log("Cannot list files: missing sessionId");
     const res = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/files`, { credentials: "include" });
@@ -315,8 +389,98 @@
     log("Uploading phase CSVs...");
 
     for (const [phase, data] of phaseData.entries()) {
-      const fd = new FormData();
       const p = phase.toUpperCase();
+
+      if (p === "POSTURAL") {
+        const markerLines = data.MARKERS || [];
+        const windows = buildPosturalWindows(markerLines);
+
+        for (const w of windows) {
+          const fd = new FormData();
+
+          fd.append(
+            `EEG_${w.suffix}`,
+            asFile(
+              filterCsvLinesByWindow(data.EEG, w.startMs, w.endMs),
+              `session_${sessionId}_EEG_${w.suffix}.csv`
+            )
+          );
+
+          fd.append(
+            `PPG_${w.suffix}`,
+            asFile(
+              filterCsvLinesByWindow(data.PPG, w.startMs, w.endMs),
+              `session_${sessionId}_PPG_${w.suffix}.csv`
+            )
+          );
+
+          fd.append(
+            `ACC_${w.suffix}`,
+            asFile(
+              filterCsvLinesByWindow(data.ACC, w.startMs, w.endMs),
+              `session_${sessionId}_ACC_${w.suffix}.csv`
+            )
+          );
+
+          fd.append(
+            `GYRO_${w.suffix}`,
+            asFile(
+              filterCsvLinesByWindow(data.GYRO, w.startMs, w.endMs),
+              `session_${sessionId}_GYRO_${w.suffix}.csv`
+            )
+          );
+
+          const res = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/files`, {
+            method: "POST",
+            body: fd,
+            credentials: "include"
+          });
+
+          const txt = await res.text();
+          log(`POST /files (${w.suffix}) -> HTTP ${res.status}`);
+          if (!res.ok) {
+            log(txt);
+            throw new Error(`Upload failed for postural segment ${w.suffix}`);
+          }
+        }
+
+        {
+          const fd = new FormData();
+
+          fd.append(
+            `MARKERS_POSTURAL`,
+            asFile(
+              rowsToCsv(data.MARKERS),
+              `session_${sessionId}_POSTURAL_MARKERS.csv`
+            )
+          );
+
+          fd.append(
+            `RESPONSES_POSTURAL`,
+            asFile(
+              rowsToCsv(data.RESPONSES),
+              `session_${sessionId}_POSTURAL_RESPONSES.csv`
+            )
+          );
+
+          const res = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/files`, {
+            method: "POST",
+            body: fd,
+            credentials: "include"
+          });
+
+          const txt = await res.text();
+          log(`POST /files (POSTURAL_MARKERS_RESPONSES) -> HTTP ${res.status}`);
+          if (!res.ok) {
+            log(txt);
+            throw new Error("Upload failed for postural markers/responses");
+          }
+        }
+
+        continue;
+      }
+
+      const fd = new FormData();
 
       fd.append(`EEG_${p}`, asFile(data.EEG.join("\n") + "\n", `session_${sessionId}_${p}_EEG.csv`));
       fd.append(`PPG_${p}`, asFile(data.PPG.join("\n") + "\n", `session_${sessionId}_${p}_PPG.csv`));
