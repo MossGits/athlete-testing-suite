@@ -238,8 +238,8 @@
       const idx = indices[i];
 
       let bg = "rgba(73, 209, 127, 0.18)";
-      if (idx >= 4) bg = "rgba(255, 209, 102, 0.18)";
-      if (idx >= 7) bg = "rgba(255, 107, 107, 0.18)";
+      if (idx >= 6) bg = "rgba(255, 209, 102, 0.18)";
+      if (idx >= 8) bg = "rgba(255, 107, 107, 0.18)";
       div.style.background = bg;
 
       div.innerHTML = `<div style="font-weight:700">${labels[i]}</div><div class="muted">idx ${idx}</div>`;
@@ -270,7 +270,7 @@
       const indices = sds.map(sd => isFinite(sd) ? computeQualityIndex(sd) : 10);
       renderQuality(indices);
 
-      const pass = indices.every(x => x <= 4);
+      const pass = indices.every(x => x <= 6);
       const now = Date.now();
 
       const bs = $("btnStart");
