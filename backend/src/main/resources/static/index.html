@@ -29,50 +29,55 @@
       <div class="hero-text">
         <div class="hero-kicker">Sideline concussion support</div>
         <h1>Fast, organized concussion screening support for the sideline.</h1>
-        <p class="hero-copy">
-          C-SIDE helps organize athlete testing, streamline session workflows,
-          and support faster concussion screening decisions in a cleaner,
-          easier-to-use system.
-        </p>
-
-        <div class="hero-cta">
-          <a class="btn primary" href="/register.html">Create account</a>
-          <a class="btn ghost" href="/login.html">Log in</a>
-        </div>
-
-        <p class="disclaimer">
-          Built to support athletic trainers and athletes with structured
-          baseline and active concussion testing workflows.
-        </p>
       </div>
 
       <div class="hero-visual" aria-hidden="true">
         <div class="visual-card">
           <div class="visual-badge">C-SIDE</div>
-          <div class="visual-headline">Concussion screening, organized for the sideline.</div>
+          <div class="visual-headline">Comparison view mockup</div>
 
-          <div class="visual-track">
-            <span class="track-dot dot-blue"></span>
-            <span class="track-line"></span>
-            <span class="track-dot dot-red"></span>
-          </div>
+          <div class="mock-chart-shell">
+            <div class="mock-chart-header">
+              <div class="mock-chart-title">Baseline vs Active</div>
+              <div class="mock-chart-subtitle">Example comparison data</div>
+            </div>
 
-          <div class="visual-panels">
-            <div class="mini-panel">
-              <div class="mini-label">Baseline</div>
-              <div class="mini-bar blue"></div>
+            <div class="mock-chart-area">
+              <div class="mock-grid-lines">
+                <span></span>
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+
+              <svg class="mock-chart-svg" viewBox="0 0 520 260" preserveAspectRatio="none">
+                <polyline
+                  class="line-baseline"
+                  points="20,160 85,145 150,138 215,142 280,128 345,120 410,126 500,118"
+                />
+                <polyline
+                  class="line-active"
+                  points="20,170 85,182 150,168 215,188 280,150 345,138 410,158 500,132"
+                />
+              </svg>
+
+              <div class="mock-x-labels">
+                <span>Go/No-Go</span>
+                <span>1-Back</span>
+                <span>Postural Both</span>
+                <span>Postural Left</span>
+                <span>Postural Right</span>
+              </div>
             </div>
-            <div class="mini-panel">
-              <div class="mini-label">Active</div>
-              <div class="mini-bar red"></div>
-            </div>
-            <div class="mini-panel wide">
-              <div class="mini-label">Connection quality</div>
-              <div class="mini-dots">
-                <span class="mini-dot good"></span>
-                <span class="mini-dot warn"></span>
-                <span class="mini-dot good"></span>
-                <span class="mini-dot bad"></span>
+
+            <div class="mock-legend">
+              <div class="legend-chip">
+                <span class="legend-line baseline"></span>
+                <span>Baseline</span>
+              </div>
+              <div class="legend-chip">
+                <span class="legend-line active"></span>
+                <span>Active</span>
               </div>
             </div>
           </div>
@@ -81,7 +86,7 @@
     </section>
 
     <section id="concussion" class="home-section">
-      <h2>What a concussion is</h2>
+      <h2>Concussion</h2>
       <div class="grid three">
         <article class="card info-card">
           <h3>What it is</h3>
@@ -114,27 +119,18 @@
       <h2>The danger of going undiagnosed</h2>
       <div class="grid">
         <article class="card info-card emphasis-card">
-          <h3>Why fast screening matters</h3>
+          <h3>Common consequences</h3>
           <p>
-            Return-to-play decisions based only on symptom resolution can lead to
-            premature return and increased risk of serious complications. One of
-            the most severe risks is second impact syndrome, where a second head
-            injury happens before full recovery.
+            Return-to-play decisions that rely on subjective symptom resolution
+            can lead to premature return and increased risk of serious
+            complications. One of the most severe risks is second impact
+            syndrome, where a second head injury happens before full recovery.
           </p>
         </article>
       </div>
     </section>
 
     <footer class="home-footer">
-      <div class="footer-brand">
-        <img
-          src="/images/cside-logo.png"
-          alt="C-SIDE logo"
-          class="footer-logo"
-        />
-        <span>C-SIDE Concussion Sideline Injury Detection &amp; Evaluation</span>
-      </div>
-
       <div class="footer-links">
         <a href="/login.html">Log in</a>
         <a href="/register.html">Create account</a>
