@@ -42,6 +42,20 @@
     return s.slice(0, 2).toUpperCase();
   }
 
+  function qualityClassFromIndex(idx) {
+    if (idx <= 3) return "status-good";
+    if (idx <= 6) return "status-warn";
+    return "status-bad";
+  }
+
+  function setSensorDot(dotId, idx) {
+    const el = $(dotId);
+    if (!el) return;
+
+    el.classList.remove("status-good", "status-warn", "status-bad");
+    el.classList.add("sensorDot", qualityClassFromIndex(idx));
+  }
+
   if ($("sessionId")) $("sessionId").textContent = sessionId || "(missing)";
   if ($("athleteId")) $("athleteId").textContent = athleteLabel || fallbackInitialsFromAthleteId(athleteId);
   if ($("mode")) $("mode").textContent = mode;
@@ -220,23 +234,12 @@
   }
 
   function renderQuality(indices) {
-    const labels = ["TP9", "AF7", "AF8", "TP10"];
-    const grid = $("qGrid");
-    if (!grid) return;
-    grid.innerHTML = "";
-    for (let i = 0; i < 4; i++) {
-      const div = document.createElement("div");
-      div.className = "qcell";
-      const idx = indices[i];
+    if (!Array.isArray(indices) || indices.length < 4) return;
 
-      let bg = "rgba(73, 209, 127, 0.18)";
-      if (idx >= 6) bg = "rgba(255, 209, 102, 0.18)";
-      if (idx >= 8) bg = "rgba(255, 107, 107, 0.18)";
-      div.style.background = bg;
-
-      div.innerHTML = `<div style="font-weight:700">${labels[i]}</div><div>idx ${idx}</div>`;
-      grid.appendChild(div);
-    }
+    setSensorDot("dot-left-ear", indices[0]);
+    setSensorDot("dot-left-forehead", indices[1]);
+    setSensorDot("dot-right-forehead", indices[2]);
+    setSensorDot("dot-right-ear", indices[3]);
   }
 
   function startLiveQuality() {
