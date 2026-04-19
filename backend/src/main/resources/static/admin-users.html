@@ -670,10 +670,15 @@
     const data = await res.json();
     const sessionId = data.sessionId;
 
+    const firstInitial = (selectedAthlete?.firstName || '').trim().charAt(0).toUpperCase();
+    const lastInitial = (selectedAthlete?.lastName || '').trim().charAt(0).toUpperCase();
+    const athleteLabel = (firstInitial + lastInitial) || String(athleteId ?? '').slice(0, 2).toUpperCase();
+
     const url = (type === 'baseline' ? '/baselinetest.html' : '/activetest.html')
       + `?sessionId=${encodeURIComponent(sessionId)}`
       + `&mode=${encodeURIComponent(sessionMode)}`
-      + `&athleteId=${encodeURIComponent(athleteId ?? '')}`;
+      + `&athleteId=${encodeURIComponent(athleteId ?? '')}`
+      + `&athleteLabel=${encodeURIComponent(athleteLabel)}`;
 
     const w = window.open(
       url,
