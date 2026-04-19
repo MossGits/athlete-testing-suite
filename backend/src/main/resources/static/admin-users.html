@@ -572,6 +572,20 @@
     return String(raw).toUpperCase();
   }
 
+  function friendlyRoleLabel(me) {
+    const roleText = normalizedRoleString(me);
+
+    if (roleText.includes('TRAINER') || roleText.includes('ADMIN')) {
+      return 'Athletic Trainer';
+    }
+
+    if (roleText.includes('ATHLETE')) {
+      return 'Athlete';
+    }
+
+    return 'User';
+  }
+
   function hasRole(me, token) {
     return normalizedRoleString(me).includes(token.toUpperCase());
   }
@@ -672,7 +686,7 @@
       return;
     }
 
-    setMsg(`Opened ${sessionMode} test window. Session: ${sessionId}`, '');
+    setMsg('', '');
   }
 
   function closeTestModal(silent) {
@@ -1263,7 +1277,7 @@
 
     me = whoRes.data;
 
-    const roleStr = normalizedRoleString(me) || '(unknown role)';
+    const roleStr = friendlyRoleLabel(me);
     document.getElementById('who').textContent = `${me.email} • ${roleStr}`;
 
     const athleteEl = document.getElementById('athleteView');
@@ -1300,7 +1314,7 @@
       return;
     }
 
-    setMsg(`Unknown role in /api/auth/me: ${roleStr}`, 'warn');
+    setMsg(`Unknown role in /api/auth/me: ${normalizedRoleString(me) || '(unknown role)'}`, 'warn');
     athleteEl.hidden = false;
     trainerEl.remove();
   }
