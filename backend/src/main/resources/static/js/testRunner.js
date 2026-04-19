@@ -11,6 +11,7 @@
   const qs = new URLSearchParams(location.search);
   const sessionId = qs.get("sessionId");
   const athleteId = qs.get("athleteId");
+  const athleteLabel = qs.get("athleteLabel");
   const mode = qs.get("mode") || "UNKNOWN";
 
   const $ = (id) => document.getElementById(id);
@@ -34,20 +35,24 @@
     if (strong) strong.textContent = text;
   }
 
-  // Wire query params
+  function fallbackInitialsFromAthleteId(value) {
+    if (!value) return "—";
+    const s = String(value).trim();
+    if (!s) return "—";
+    return s.slice(0, 2).toUpperCase();
+  }
+
   if ($("sessionId")) $("sessionId").textContent = sessionId || "(missing)";
-  if ($("athleteId")) $("athleteId").textContent = athleteId || "(missing)";
+  if ($("athleteId")) $("athleteId").textContent = athleteLabel || fallbackInitialsFromAthleteId(athleteId);
   if ($("mode")) $("mode").textContent = mode;
 
   if (!sessionId) log("Missing sessionId in query string. Expected ?sessionId=...&athleteId=...&mode=...");
 
-  // -------- Messaging (BC + postMessage + storage) --------
   const bcName = sessionId ? `athlete-paradigm-${sessionId}` : null;
   const bc = (bcName && typeof BroadcastChannel !== "undefined") ? new BroadcastChannel(bcName) : null;
   const storageKey = bcName ? `paradigm-msg-${bcName}` : null;
 
-  // Dedup all incoming paradigm messages (covers multi-transport repeats)
-  const seen = new Map(); // signature -> ts
+  const seen = new Map();
   function seenRecently(signature, windowMs = 2000) {
     const now = Date.now();
     for (const [k, t] of seen.entries()) if (now - t > windowMs) seen.delete(k);
@@ -57,7 +62,6 @@
   }
 
   function signatureFor(msg) {
-    // Stable-ish signature. We specifically need to dedupe marker/configAck/etc.
     const p = msg?.payload;
     if (!msg) return "null";
     if (msg.type === "marker") return `marker:${p?.marker ?? ""}`;
@@ -73,24 +77,20 @@
 
   function sendToParadigm(type, payload = {}) {
     const msg = { source: "CONTROLLER", type, payload };
-    // Prefer BC (matches paradigmRunner preference)
     if (bc) {
       try { bc.postMessage(msg); return; } catch {}
     }
-    // Fallback to postMessage if window exists
     if (paradigmWin && !paradigmWin.closed) {
       try { paradigmWin.postMessage(msg, "*"); return; } catch {}
     }
-    // Storage fallback (rarely needed for controller -> popup, but kept)
     if (storageKey) {
       try { localStorage.setItem(storageKey, JSON.stringify({ ts: Date.now(), ...msg })); } catch {}
     }
   }
 
-  // -------- Muse sampling / recording --------
   const muse = new Muse();
   const EEG_SFREQ = 256;
-  const EEG_CH = 4; // TP9, AF7, AF8, TP10
+  const EEG_CH = 4;
   const eegRoll = Array.from({ length: EEG_CH }, () => []);
   const ppgRoll = [[], [], []];
   const accRoll = [[], [], []];
@@ -129,13 +129,12 @@
     return phaseData.get(phase);
   }
 
-  // Dedup identical markers within a short window
   let lastMarker = null;
   let lastMarkerAt = 0;
 
   function marker(m) {
     const now = Date.now();
-    if (m === lastMarker && (now - lastMarkerAt) < 50) return; // drop dup bursts
+    if (m === lastMarker && (now - lastMarkerAt) < 50) return;
     lastMarker = m;
     lastMarkerAt = now;
 
@@ -156,7 +155,6 @@
   function consumeMuseBuffers() {
     const now = Date.now();
 
-    // EEG
     while (true) {
       if (!muse?.eeg || muse.eeg.length < 4) break;
       const v = [muse.eeg[0].read(), muse.eeg[1].read(), muse.eeg[2].read(), muse.eeg[3].read()];
@@ -175,7 +173,6 @@
       }
     }
 
-    // PPG
     while (true) {
       if (!muse?.ppg || muse.ppg.length < 3) break;
       const v = [muse.ppg[0].read(), muse.ppg[1].read(), muse.ppg[2].read()];
@@ -184,7 +181,6 @@
       if (isRunning && currentPhase) ensurePhase(currentPhase).PPG.push(`${Date.now()},${v[0]},${v[1]},${v[2]}`);
     }
 
-    // ACC
     while (true) {
       if (!muse?.accelerometer || muse.accelerometer.length < 3) break;
       const v = [muse.accelerometer[0].read(), muse.accelerometer[1].read(), muse.accelerometer[2].read()];
@@ -193,7 +189,6 @@
       if (isRunning && currentPhase) ensurePhase(currentPhase).ACC.push(`${Date.now()},${v[0]},${v[1]},${v[2]}`);
     }
 
-    // GYRO
     while (true) {
       if (!muse?.gyroscope || muse.gyroscope.length < 3) break;
       const v = [muse.gyroscope[0].read(), muse.gyroscope[1].read(), muse.gyroscope[2].read()];
@@ -207,13 +202,10 @@
     const accOk = !!muse?.accelerometer?.[0] && (now - muse.accelerometer[0].lastwrite) < 1500;
     const gyroOk = !!muse?.gyroscope?.[0] && (now - muse.gyroscope[0].lastwrite) < 1500;
 
-    setPill("pStreams", eegOk ? "ok" : "warn", `EEG:${eegOk ? "OK" : "—"}  PPG:${ppgOk ? "OK" : "—"}  ACC:${accOk ? "OK" : "—"}  GYRO:${gyroOk ? "OK" : "—"}`);
-
-    const bq = $("btnQuality");
-    if (bq) bq.disabled = !isConnected || !eegOk;
+    const streamsActive = eegOk || ppgOk || accOk || gyroOk;
+    setPill("pStreams", streamsActive ? "ok" : "warn", streamsActive ? "active" : "waiting");
   }
 
-  // -------- Quality check (unchanged logic) --------
   function stddev(arr) {
     if (!arr.length) return NaN;
     const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
@@ -242,7 +234,7 @@
       if (idx >= 8) bg = "rgba(255, 107, 107, 0.18)";
       div.style.background = bg;
 
-      div.innerHTML = `<div style="font-weight:700">${labels[i]}</div><div class="muted">idx ${idx}</div>`;
+      div.innerHTML = `<div style="font-weight:700">${labels[i]}</div><div>idx ${idx}</div>`;
       grid.appendChild(div);
     }
   }
@@ -260,7 +252,7 @@
       const haveData = eegRoll.every(ch => ch.length >= Math.floor(EEG_SFREQ / 2));
       if (!haveData) {
         renderQuality([10, 10, 10, 10]);
-        setPill("pQuality", "warn", "waiting for EEG…");
+        setPill("pQuality", "warn", "waiting");
         const bs = $("btnStart");
         if (bs) bs.disabled = true;
         return;
@@ -279,24 +271,21 @@
         const stableMs = now - qualityStableSince;
         if (stableMs >= 2000) {
           qualityPassed = true;
-          setPill("pQuality", "ok", "PASSED");
+          setPill("pQuality", "ok", "ready");
           if (bs) bs.disabled = false;
         } else {
-          setPill("pQuality", "warn", `stabilizing (${Math.ceil((2000 - stableMs) / 1000)}s)`);
+          setPill("pQuality", "warn", "checking");
           if (bs) bs.disabled = true;
         }
       } else {
         qualityStableSince = null;
         qualityPassed = false;
         if (bs) bs.disabled = true;
-        setPill("pQuality", "warn", "adjust electrodes");
+        setPill("pQuality", "warn", "adjusting");
       }
     }, 250);
   }
 
-  function runQualityCheck() { startLiveQuality(); }
-
-  // -------- Upload helpers --------
   function asFile(contents, filename) {
     const blob = new Blob([contents], { type: "text/csv" });
     return new File([blob], filename, { type: "text/csv" });
@@ -358,30 +347,10 @@
     }
 
     return [
-      {
-        suffix: "POSTURALBOTH",
-        startMs: both.t,
-        endMs: left.t
-      },
-      {
-        suffix: "POSTURALLEFT",
-        startMs: left.t,
-        endMs: right.t
-      },
-      {
-        suffix: "POSTURALRIGHT",
-        startMs: right.t,
-        endMs: phaseEnd ? phaseEnd.t : Number.MAX_SAFE_INTEGER
-      }
+      { suffix: "POSTURALBOTH", startMs: both.t, endMs: left.t },
+      { suffix: "POSTURALLEFT", startMs: left.t, endMs: right.t },
+      { suffix: "POSTURALRIGHT", startMs: right.t, endMs: phaseEnd ? phaseEnd.t : Number.MAX_SAFE_INTEGER }
     ];
-  }
-
-  async function listFiles() {
-    if (!sessionId) return log("Cannot list files: missing sessionId");
-    const res = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/files`, { credentials: "include" });
-    const txt = await res.text();
-    log(`GET /files -> HTTP ${res.status}`);
-    log(txt);
   }
 
   async function uploadPhaseCSVs() {
@@ -398,37 +367,10 @@
         for (const w of windows) {
           const fd = new FormData();
 
-          fd.append(
-            `EEG_${w.suffix}`,
-            asFile(
-              filterCsvLinesByWindow(data.EEG, w.startMs, w.endMs),
-              `session_${sessionId}_EEG_${w.suffix}.csv`
-            )
-          );
-
-          fd.append(
-            `PPG_${w.suffix}`,
-            asFile(
-              filterCsvLinesByWindow(data.PPG, w.startMs, w.endMs),
-              `session_${sessionId}_PPG_${w.suffix}.csv`
-            )
-          );
-
-          fd.append(
-            `ACC_${w.suffix}`,
-            asFile(
-              filterCsvLinesByWindow(data.ACC, w.startMs, w.endMs),
-              `session_${sessionId}_ACC_${w.suffix}.csv`
-            )
-          );
-
-          fd.append(
-            `GYRO_${w.suffix}`,
-            asFile(
-              filterCsvLinesByWindow(data.GYRO, w.startMs, w.endMs),
-              `session_${sessionId}_GYRO_${w.suffix}.csv`
-            )
-          );
+          fd.append(`EEG_${w.suffix}`, asFile(filterCsvLinesByWindow(data.EEG, w.startMs, w.endMs), `session_${sessionId}_EEG_${w.suffix}.csv`));
+          fd.append(`PPG_${w.suffix}`, asFile(filterCsvLinesByWindow(data.PPG, w.startMs, w.endMs), `session_${sessionId}_PPG_${w.suffix}.csv`));
+          fd.append(`ACC_${w.suffix}`, asFile(filterCsvLinesByWindow(data.ACC, w.startMs, w.endMs), `session_${sessionId}_ACC_${w.suffix}.csv`));
+          fd.append(`GYRO_${w.suffix}`, asFile(filterCsvLinesByWindow(data.GYRO, w.startMs, w.endMs), `session_${sessionId}_GYRO_${w.suffix}.csv`));
 
           const res = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/files`, {
             method: "POST",
@@ -447,21 +389,8 @@
         {
           const fd = new FormData();
 
-          fd.append(
-            `MARKERS_POSTURAL`,
-            asFile(
-              rowsToCsv(data.MARKERS),
-              `session_${sessionId}_POSTURAL_MARKERS.csv`
-            )
-          );
-
-          fd.append(
-            `RESPONSES_POSTURAL`,
-            asFile(
-              rowsToCsv(data.RESPONSES),
-              `session_${sessionId}_POSTURAL_RESPONSES.csv`
-            )
-          );
+          fd.append(`MARKERS_POSTURAL`, asFile(rowsToCsv(data.MARKERS), `session_${sessionId}_POSTURAL_MARKERS.csv`));
+          fd.append(`RESPONSES_POSTURAL`, asFile(rowsToCsv(data.RESPONSES), `session_${sessionId}_POSTURAL_RESPONSES.csv`));
 
           const res = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/files`, {
             method: "POST",
@@ -519,16 +448,11 @@
 
     setPill("pRun", "ok", "complete");
 
-    // Close popup AFTER uploads
     if (paradigmWin && !paradigmWin.closed) {
       try { paradigmWin.close(); } catch {}
     }
 
-    await listFiles();
-
-    const ba = $("btnAbort");
     const bcBtn = $("btnConnect");
-    if (ba) ba.disabled = true;
     if (bcBtn) bcBtn.disabled = false;
   }
 
@@ -537,20 +461,16 @@
     currentPhase = null;
     setPill("pRun", "bad", "stopped");
     log(reason || "Stopped");
-    const ba = $("btnAbort");
     const bcBtn = $("btnConnect");
-    if (ba) ba.disabled = true;
     if (bcBtn) bcBtn.disabled = false;
   }
 
-  // -------- Paradigm config handshake control --------
   let configAcked = false;
   let retryTimer = null;
 
   function sendConfigToParadigm() {
     if (configAcked) return;
     sendToParadigm("config", {
-      // keep 15s testing values
       goNoGoDurationMs: 15000,
       oneBackDurationMs: 15000,
       posturalTrialMs: 15000,
@@ -564,7 +484,6 @@
     });
   }
 
-  // -------- Incoming paradigm messages --------
   function handleParadigmMessage(msg) {
     if (!msg || msg.source !== "PARADIGM") return;
 
@@ -574,7 +493,6 @@
     log(`RX PARADIGM: ${msg.type}`);
 
     if (msg.type === "hello") {
-      // popup is ready for config
       sendConfigToParadigm();
       return;
     }
@@ -592,9 +510,7 @@
       return;
     }
 
-    if (msg.type === "phaseEnd") {
-      return;
-    }
+    if (msg.type === "phaseEnd") return;
 
     if (msg.type === "marker") {
       marker(msg.payload?.marker);
@@ -641,21 +557,16 @@
     });
   }
 
-  // -------- Start paradigm --------
   async function runParadigm() {
     abortRequested = false;
     isRunning = true;
     configAcked = false;
 
-    const ba = $("btnAbort");
     const bs = $("btnStart");
     const bcBtn = $("btnConnect");
-    const bq = $("btnQuality");
 
-    if (ba) ba.disabled = false;
     if (bs) bs.disabled = true;
     if (bcBtn) bcBtn.disabled = true;
-    if (bq) bq.disabled = true;
 
     setPill("pRun", "warn", "running");
 
@@ -677,7 +588,6 @@
 
     try { w.moveTo(0, 0); w.resizeTo(screen.availWidth, screen.availHeight); } catch {}
 
-    // Retry config until ack (or timeout)
     let tries = 0;
     if (retryTimer) { clearInterval(retryTimer); retryTimer = null; }
     retryTimer = setInterval(() => {
@@ -691,20 +601,6 @@
     log("Paradigm opened. Waiting for configAck...");
   }
 
-  function abort() {
-    abortRequested = true;
-    setPill("pRun", "bad", "aborting");
-    log("Abort requested.");
-
-    sendToParadigm("abort", {});
-    if (paradigmWin && !paradigmWin.closed) {
-      try { paradigmWin.close(); } catch {}
-    }
-
-    stopRunFromPopup("Aborted by user.");
-  }
-
-  // -------- Connect Muse --------
   async function connectMuse() {
     try {
       setPill("pMuse", "warn", "connecting");
@@ -719,9 +615,6 @@
 
       startLiveQuality();
 
-      const bq = $("btnQuality");
-      if (bq) bq.disabled = false;
-
     } catch (err) {
       isConnected = false;
       setPill("pMuse", "bad", "failed");
@@ -729,20 +622,12 @@
     }
   }
 
-  // Bind buttons
   const btnConnect = $("btnConnect");
-  const btnQuality = $("btnQuality");
   const btnStart = $("btnStart");
-  const btnAbort = $("btnAbort");
-  const btnListFiles = $("btnListFiles");
 
   if (btnConnect) btnConnect.addEventListener("click", connectMuse);
-  if (btnQuality) btnQuality.addEventListener("click", runQualityCheck);
   if (btnStart) btnStart.addEventListener("click", runParadigm);
-  if (btnAbort) btnAbort.addEventListener("click", abort);
-  if (btnListFiles) btnListFiles.addEventListener("click", listFiles);
 
-  // Initial pills
   setPill("pMuse", "bad", "disconnected");
   setPill("pStreams", "warn", "waiting");
   setPill("pQuality", "warn", "not started");
