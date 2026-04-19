@@ -13,10 +13,66 @@
     .bad{color:#ff6b6b}
     .warn{color:#ffd166}
     button[disabled]{opacity:0.5;cursor:not-allowed}
-    .qgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:8px}
-    .qcell{padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.14);text-align:center}
-    @media (max-width: 700px){
-      .qgrid{grid-template-columns:repeat(2,1fr);}
+
+    .qualityWrap{
+      margin-top:10px;
+    }
+
+    .qualityTitle{
+      font-weight:700;
+      margin-bottom:10px;
+    }
+
+    .qualityImageCard{
+      position:relative;
+      width:min(100%, 640px);
+      margin:0 auto;
+      border-radius:14px;
+      border:1px solid rgba(255,255,255,0.12);
+      background:rgba(255,255,255,0.04);
+      padding:12px;
+    }
+
+    .qualityImage{
+      display:block;
+      width:100%;
+      height:auto;
+      border-radius:10px;
+    }
+
+    .sensorDot{
+      position:absolute;
+      width:22px;
+      height:22px;
+      border-radius:999px;
+      border:2px solid rgba(255,255,255,0.9);
+      box-shadow:0 0 0 3px rgba(0,0,0,0.18);
+      transform:translate(-50%, -50%);
+    }
+
+    .sensorLabel{
+      position:absolute;
+      transform:translateX(-50%);
+      font-size:.9rem;
+      font-weight:700;
+      padding:4px 8px;
+      border-radius:999px;
+      background:rgba(255,255,255,0.82);
+      color:#1f2937;
+      border:1px solid rgba(0,0,0,0.08);
+      white-space:nowrap;
+    }
+
+    .status-good{
+      background:#49d17f;
+    }
+
+    .status-warn{
+      background:#ffd166;
+    }
+
+    .status-bad{
+      background:#ff6b6b;
     }
   </style>
 </head>
@@ -42,8 +98,26 @@
         <span class="pill" id="pRun"><span class="warn">●</span> Test: <strong>idle</strong></span>
       </div>
 
-      <div id="qualityPanel" style="display:none">
-        <div class="qgrid" id="qGrid"></div>
+      <div id="qualityPanel" class="qualityWrap" style="display:none">
+        <div class="qualityTitle">Connection Quality</div>
+
+        <div class="qualityImageCard">
+          <img
+            src="/images/muse2-front.png"
+            alt="Muse headset sensor positions"
+            class="qualityImage"
+          />
+
+          <div id="dot-left-ear" class="sensorDot status-bad" style="left: 13%; top: 36%;"></div>
+          <div id="dot-left-forehead" class="sensorDot status-bad" style="left: 39.5%; top: 19%;"></div>
+          <div id="dot-right-forehead" class="sensorDot status-bad" style="left: 60.5%; top: 19%;"></div>
+          <div id="dot-right-ear" class="sensorDot status-bad" style="left: 87%; top: 36%;"></div>
+
+          <div class="sensorLabel" style="left: 13%; top: 44%;">Left Ear</div>
+          <div class="sensorLabel" style="left: 39.5%; top: 27%;">Left Forehead</div>
+          <div class="sensorLabel" style="left: 60.5%; top: 27%;">Right Forehead</div>
+          <div class="sensorLabel" style="left: 87%; top: 44%;">Right Ear</div>
+        </div>
       </div>
     </div>
   </div>
