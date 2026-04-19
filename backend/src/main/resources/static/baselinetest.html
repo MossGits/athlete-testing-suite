@@ -8,43 +8,41 @@
   <style>
     .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:12px 0;}
     .card{background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:12px;padding:12px;}
-    .muted{opacity:0.85}
     .pill{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;border:1px solid rgba(255,255,255,0.18)}
     .ok{color:#49d17f}
     .bad{color:#ff6b6b}
     .warn{color:#ffd166}
     button[disabled]{opacity:0.5;cursor:not-allowed}
-    pre{white-space:pre-wrap;background:rgba(0,0,0,0.25);padding:10px;border-radius:10px;overflow:auto;max-height:260px;}
-    .qgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:8px}
+    .qgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:8px}
     .qcell{padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.14);text-align:center}
+    @media (max-width: 700px){
+      .qgrid{grid-template-columns:repeat(2,1fr);}
+    }
   </style>
 </head>
 <body>
   <div class="container">
     <h1>Baseline Test</h1>
-    <p class="muted">Connect Muse → pass quality check → run the paradigm → CSVs will be stored under this session.</p>
 
     <div class="card">
       <div class="row">
-        <span class="pill">Session: <strong id="sessionId">—</strong></span>
         <span class="pill">Athlete: <strong id="athleteId">—</strong></span>
         <span class="pill">Mode: <strong id="mode">—</strong></span>
       </div>
+
       <div class="row">
         <button id="btnConnect">Connect Muse</button>
-        <button id="btnQuality" disabled>Run Quality Check</button>
         <button id="btnStart" disabled>Start Test</button>
-        <button id="btnAbort" disabled>Abort</button>
-        <button id="btnListFiles">List Stored Files</button>
       </div>
+
       <div class="row">
         <span class="pill" id="pMuse"><span class="bad">●</span> Muse: <strong>disconnected</strong></span>
         <span class="pill" id="pStreams"><span class="warn">●</span> Streams: <strong>waiting</strong></span>
         <span class="pill" id="pQuality"><span class="warn">●</span> Quality: <strong>not started</strong></span>
         <span class="pill" id="pRun"><span class="warn">●</span> Test: <strong>idle</strong></span>
       </div>
+
       <div id="qualityPanel" style="display:none">
-        <div class="muted">EEG electrode quality (lower index = better). Pass condition: all channels ≤ 6 for 2 seconds.</div>
         <div class="qgrid" id="qGrid"></div>
       </div>
     </div>
