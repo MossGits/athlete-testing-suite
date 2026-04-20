@@ -39,10 +39,14 @@
 
     .trainerLayout{
       display:grid;
-      grid-template-columns: minmax(340px, 1.05fr) minmax(430px, 1fr);
+      grid-template-columns: minmax(320px, .9fr) minmax(430px, 1fr);
       gap:1rem;
       margin-top:1rem;
       align-items:start;
+    }
+
+    #resultsPanel{
+      grid-column:1 / -1;
     }
 
     .stack{
@@ -129,7 +133,7 @@
     .resultsTable{
       width:100%;
       border-collapse:collapse;
-      min-width:900px;
+      min-width:720px;
     }
 
     .resultsTable th,
@@ -287,76 +291,6 @@
           <div id="athletesEmpty" class="note" hidden>No athletes found for your organization.</div>
           <div id="athletesList" class="list"></div>
         </div>
-
-        <div id="resultsPanel" class="panelCard" hidden>
-          <div class="selectedAthleteHeader">
-            <h3 style="margin:0;">Baseline Comparison</h3>
-          </div>
-
-          <div id="resultsShell" class="resultsShell" style="margin-top:1rem;">
-            <div id="resultsEmptyState" class="mutedBox">
-              Select an athlete to load their most recent baseline.
-            </div>
-
-            <div id="resultsContent" hidden>
-              <div class="sessionInfoGrid">
-                <div class="sessionInfoCard">
-                  <h4>Reference Baseline</h4>
-                  <div id="baselineSummary" class="note">No baseline loaded.</div>
-                </div>
-                <div class="sessionInfoCard">
-                  <h4>Comparison Test</h4>
-                  <div id="comparisonSummary" class="note">No comparison selected. Click a test on the right.</div>
-                </div>
-              </div>
-
-              <div class="chartWrap">
-                <div class="chartControls">
-                  <label for="sensorSelect">Sensor</label>
-                  <select id="sensorSelect">
-                    <option value="EEG">EEG</option>
-                    <option value="PPG">Cardiovascular (PPG)</option>
-                    <option value="ACC">Postural Sway (ACC)</option>
-                    <option value="GYRO">Rotational Sway (GYRO)</option>
-                  </select>
-                  <span id="resultsTitle" class="pill">No athlete selected</span>
-                </div>
-
-                <canvas id="metricChart" class="metricChart"></canvas>
-
-                <div class="comparisonLegend">
-                  <div class="legendItem">
-                    <span class="legendSwatch" id="baselineSwatch" style="background:rgba(59,130,246,0.45)"></span>
-                    <span id="baselineLegendLabel">Baseline</span>
-                  </div>
-                  <div class="legendItem">
-                    <span class="legendSwatch" id="comparisonSwatch" style="background:rgba(37,99,235,0.9)"></span>
-                    <span id="comparisonLegendLabel">Comparison</span>
-                  </div>
-                </div>
-              </div>
-
-              <div class="tableWrap">
-                <table class="resultsTable">
-                  <thead>
-                    <tr>
-                      <th>Phase</th>
-                      <th>Metric</th>
-                      <th>Baseline Status</th>
-                      <th>Baseline Value</th>
-                      <th>Comparison Status</th>
-                      <th>Comparison Value</th>
-                      <th>Delta</th>
-                    </tr>
-                  </thead>
-                  <tbody id="resultsTableBody"></tbody>
-                </table>
-              </div>
-
-              <div id="resultsNote" class="note"></div>
-            </div>
-          </div>
-        </div>
       </div>
 
       <div class="stack">
@@ -388,6 +322,74 @@
           <h3>Past Diagnostic Tests</h3>
           <div id="trainerTestsEmpty" class="note">Select an athlete to load tests.</div>
           <div id="trainerTestsList" class="list"></div>
+        </div>
+      </div>
+
+      <div id="resultsPanel" class="panelCard" hidden>
+        <div class="selectedAthleteHeader">
+          <h3 style="margin:0;">Baseline Comparison</h3>
+        </div>
+
+        <div id="resultsShell" class="resultsShell" style="margin-top:1rem;">
+          <div id="resultsEmptyState" class="mutedBox">
+            Select an athlete to load their most recent baseline.
+          </div>
+
+          <div id="resultsContent" hidden>
+            <div class="sessionInfoGrid">
+              <div class="sessionInfoCard">
+                <h4>Reference Baseline</h4>
+                <div id="baselineSummary" class="note">No baseline loaded.</div>
+              </div>
+              <div class="sessionInfoCard">
+                <h4>Comparison Test</h4>
+                <div id="comparisonSummary" class="note">No comparison selected. Click a test on the right.</div>
+              </div>
+            </div>
+
+            <div class="chartWrap">
+              <div class="chartControls">
+                <label for="sensorSelect">Sensor</label>
+                <select id="sensorSelect">
+                  <option value="EEG">EEG</option>
+                  <option value="PPG">Cardiovascular (PPG)</option>
+                  <option value="ACC">Postural Sway (ACC)</option>
+                  <option value="GYRO">Rotational Sway (GYRO)</option>
+                </select>
+                <span id="resultsTitle" class="pill">No athlete selected</span>
+              </div>
+
+              <canvas id="metricChart" class="metricChart"></canvas>
+
+              <div class="comparisonLegend">
+                <div class="legendItem">
+                  <span class="legendSwatch" id="baselineSwatch" style="background:rgba(59,130,246,0.45)"></span>
+                  <span id="baselineLegendLabel">Baseline</span>
+                </div>
+                <div class="legendItem">
+                  <span class="legendSwatch" id="comparisonSwatch" style="background:rgba(37,99,235,0.9)"></span>
+                  <span id="comparisonLegendLabel">Comparison</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="tableWrap">
+              <table class="resultsTable">
+                <thead>
+                  <tr>
+                    <th>Phase</th>
+                    <th>Metric</th>
+                    <th>Baseline Value</th>
+                    <th>Comparison Value</th>
+                    <th>Delta</th>
+                  </tr>
+                </thead>
+                <tbody id="resultsTableBody"></tbody>
+              </table>
+            </div>
+
+            <div id="resultsNote" class="note"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -925,9 +927,7 @@
         tr.innerHTML = `
           <td class="phaseCell">${idx === 0 ? bRow.phaseLabel : ''}</td>
           <td class="metricCell">${group.labels[metricKey]}</td>
-          <td>${bRow.status}</td>
           <td>${numericOrDash(bRow[metricKey], digits)}</td>
-          <td>${cRow ? cRow.status : '—'}</td>
           <td>${cRow ? numericOrDash(cRow[metricKey], digits) : '—'}</td>
           <td>${cRow ? numericDeltaOrDash(bRow[metricKey], cRow[metricKey], digits) : '—'}</td>
         `;
