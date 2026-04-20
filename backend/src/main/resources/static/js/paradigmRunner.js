@@ -157,10 +157,9 @@
       "",
       "Your participation is invaluable in advancing concussion research.",
       "",
-      "The test will begin shortly."
+      "Press SPACE to continue."
     ];
-    setText(welcomeText);
-    await countdown(cfg.welcomeMs ?? 15000, "Welcome");
+    await waitForSpaceWithLines(welcomeText, "WELCOME");
   }
 
   async function showInstructions() {
