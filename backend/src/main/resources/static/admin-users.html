@@ -38,21 +38,18 @@
     .hidden{ display:none !important; }
 
     .trainerLayout{
-      display:grid;
-      grid-template-columns: minmax(340px, 1.05fr) minmax(430px, 1fr);
+      display:flex;
+      flex-direction:column;
       gap:1rem;
       margin-top:1rem;
-      align-items:start;
-    }
-
-    .trainerLayout.athlete-selected{
-      grid-template-columns: minmax(0, 1fr);
+      align-items:stretch;
     }
 
     .stack{
       display:flex;
       flex-direction:column;
       gap:1rem;
+      width:100%;
     }
 
     .panelCard{
@@ -60,14 +57,12 @@
       border-radius:14px;
       padding:1rem;
       background:rgba(255,255,255,.02);
+      width:100%;
+      box-sizing:border-box;
     }
 
     .panelCard h3{
       margin-top:0;
-    }
-
-    .panelCard.fullWidth{
-      width:100%;
     }
 
     .toolbarRow{
@@ -83,12 +78,6 @@
       align-items:center;
       justify-content:space-between;
       flex-wrap:wrap;
-    }
-
-    .selectedAthleteSection{
-      display:flex;
-      flex-direction:column;
-      gap:1rem;
     }
 
     .resultsShell{
@@ -143,7 +132,7 @@
     .resultsTable{
       width:100%;
       border-collapse:collapse;
-      min-width:900px;
+      min-width:720px;
     }
 
     .resultsTable th,
@@ -247,17 +236,7 @@
     }
 
     @media (max-width: 1100px){
-      .trainerLayout{
-        grid-template-columns: 1fr;
-      }
       .sessionInfoGrid{
-        grid-template-columns: 1fr;
-      }
-    }
-
-    @media (max-width: 980px){
-      .trainerLayout,
-      .trainerLayout.athlete-selected{
         grid-template-columns: 1fr;
       }
     }
@@ -302,86 +281,14 @@
     </p>
 
     <div class="trainerLayout">
-      <div class="stack">
-        <div id="athletesPanel" class="panelCard">
-          <h3 style="margin-top:0;">Athletes</h3>
-          <div id="athletesEmpty" class="note" hidden>No athletes found for your organization.</div>
-          <div id="athletesList" class="list"></div>
-        </div>
-
-        <div id="resultsPanel" class="panelCard" hidden>
-          <div class="selectedAthleteHeader">
-            <h3 style="margin:0;">Baseline Comparison</h3>
-          </div>
-
-          <div id="resultsShell" class="resultsShell" style="margin-top:1rem;">
-            <div id="resultsEmptyState" class="mutedBox">
-              Select an athlete to load their most recent baseline.
-            </div>
-
-            <div id="resultsContent" hidden>
-              <div class="sessionInfoGrid">
-                <div class="sessionInfoCard">
-                  <h4>Reference Baseline</h4>
-                  <div id="baselineSummary" class="note">No baseline loaded.</div>
-                </div>
-                <div class="sessionInfoCard">
-                  <h4>Comparison Test</h4>
-                  <div id="comparisonSummary" class="note">No comparison selected. Click a test on the right.</div>
-                </div>
-              </div>
-
-              <div class="chartWrap">
-                <div class="chartControls">
-                  <label for="sensorSelect">Sensor</label>
-                  <select id="sensorSelect">
-                    <option value="EEG">EEG</option>
-                    <option value="PPG">Cardiovascular (PPG)</option>
-                    <option value="ACC">Postural Sway (ACC)</option>
-                    <option value="GYRO">Rotational Sway (GYRO)</option>
-                  </select>
-                  <span id="resultsTitle" class="pill">No athlete selected</span>
-                </div>
-
-                <canvas id="metricChart" class="metricChart"></canvas>
-
-                <div class="comparisonLegend">
-                  <div class="legendItem">
-                    <span class="legendSwatch" id="baselineSwatch" style="background:rgba(59,130,246,0.45)"></span>
-                    <span id="baselineLegendLabel">Baseline</span>
-                  </div>
-                  <div class="legendItem">
-                    <span class="legendSwatch" id="comparisonSwatch" style="background:rgba(37,99,235,0.9)"></span>
-                    <span id="comparisonLegendLabel">Comparison</span>
-                  </div>
-                </div>
-              </div>
-
-              <div class="tableWrap">
-                <table class="resultsTable">
-                  <thead>
-                    <tr>
-                      <th>Phase</th>
-                      <th>Metric</th>
-                      <th>Baseline Status</th>
-                      <th>Baseline Value</th>
-                      <th>Comparison Status</th>
-                      <th>Comparison Value</th>
-                      <th>Delta</th>
-                    </tr>
-                  </thead>
-                  <tbody id="resultsTableBody"></tbody>
-                </table>
-              </div>
-
-              <div id="resultsNote" class="note"></div>
-            </div>
-          </div>
-        </div>
+      <div id="athletesPanel" class="panelCard">
+        <h3 style="margin-top:0;">Athletes</h3>
+        <div id="athletesEmpty" class="note" hidden>No athletes found for your organization.</div>
+        <div id="athletesList" class="list"></div>
       </div>
 
-      <div id="selectedAthleteSection" class="stack selectedAthleteSection" hidden>
-        <div class="panelCard fullWidth">
+      <div id="selectedAthletePanel" class="stack" hidden>
+        <div class="panelCard">
           <div class="selectedAthleteHeader">
             <h3 style="margin:0;">Selected Athlete</h3>
             <button id="btnChangeAthlete" class="btn ghost" onclick="clearSelectedAthlete()" hidden>Change Athlete</button>
@@ -405,10 +312,78 @@
           </div>
         </div>
 
-        <div class="panelCard fullWidth">
+        <div class="panelCard">
           <h3>Past Diagnostic Tests</h3>
           <div id="trainerTestsEmpty" class="note">Select an athlete to load tests.</div>
           <div id="trainerTestsList" class="list"></div>
+        </div>
+      </div>
+
+      <div id="resultsPanel" class="panelCard" hidden>
+        <div class="selectedAthleteHeader">
+          <h3 style="margin:0;">Baseline Comparison</h3>
+        </div>
+
+        <div id="resultsShell" class="resultsShell" style="margin-top:1rem;">
+          <div id="resultsEmptyState" class="mutedBox">
+            Select an athlete to load their most recent baseline.
+          </div>
+
+          <div id="resultsContent" hidden>
+            <div class="sessionInfoGrid">
+              <div class="sessionInfoCard">
+                <h4>Reference Baseline</h4>
+                <div id="baselineSummary" class="note">No baseline loaded.</div>
+              </div>
+              <div class="sessionInfoCard">
+                <h4>Comparison Test</h4>
+                <div id="comparisonSummary" class="note">No comparison selected. Click a test on the right.</div>
+              </div>
+            </div>
+
+            <div class="chartWrap">
+              <div class="chartControls">
+                <label for="sensorSelect">Sensor</label>
+                <select id="sensorSelect">
+                  <option value="EEG">EEG</option>
+                  <option value="PPG">Cardiovascular (PPG)</option>
+                  <option value="ACC">Postural Sway (ACC)</option>
+                  <option value="GYRO">Rotational Sway (GYRO)</option>
+                </select>
+                <span id="resultsTitle" class="pill">No athlete selected</span>
+              </div>
+
+              <canvas id="metricChart" class="metricChart"></canvas>
+
+              <div class="comparisonLegend">
+                <div class="legendItem">
+                  <span class="legendSwatch" id="baselineSwatch" style="background:rgba(59,130,246,0.45)"></span>
+                  <span id="baselineLegendLabel">Baseline</span>
+                </div>
+                <div class="legendItem">
+                  <span class="legendSwatch" id="comparisonSwatch" style="background:rgba(37,99,235,0.9)"></span>
+                  <span id="comparisonLegendLabel">Comparison</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="tableWrap">
+              <table class="resultsTable">
+                <thead>
+                  <tr>
+                    <th>Phase</th>
+                    <th>Metric</th>
+                    <th>Baseline Value</th>
+                    <th>Comparison Value</th>
+                    <th>Delta</th>
+                  </tr>
+                </thead>
+                <tbody id="resultsTableBody"></tbody>
+              </table>
+            </div>
+
+            <div id="resultsNote" class="note"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -635,24 +610,21 @@
   }
 
   function updateAthletePanels() {
-    const trainerLayout = document.querySelector('.trainerLayout');
     const athletesPanel = document.getElementById('athletesPanel');
+    const selectedAthletePanel = document.getElementById('selectedAthletePanel');
     const resultsPanel = document.getElementById('resultsPanel');
-    const selectedAthleteSection = document.getElementById('selectedAthleteSection');
     const btnChangeAthlete = document.getElementById('btnChangeAthlete');
 
     if (selectedAthlete) {
-      if (trainerLayout) trainerLayout.classList.add('athlete-selected');
-      if (athletesPanel) athletesPanel.hidden = true;
-      if (resultsPanel) resultsPanel.hidden = false;
-      if (selectedAthleteSection) selectedAthleteSection.hidden = false;
-      if (btnChangeAthlete) btnChangeAthlete.hidden = false;
+      athletesPanel.hidden = true;
+      selectedAthletePanel.hidden = false;
+      resultsPanel.hidden = false;
+      btnChangeAthlete.hidden = false;
     } else {
-      if (trainerLayout) trainerLayout.classList.remove('athlete-selected');
-      if (athletesPanel) athletesPanel.hidden = false;
-      if (resultsPanel) resultsPanel.hidden = true;
-      if (selectedAthleteSection) selectedAthleteSection.hidden = true;
-      if (btnChangeAthlete) btnChangeAthlete.hidden = true;
+      athletesPanel.hidden = false;
+      selectedAthletePanel.hidden = true;
+      resultsPanel.hidden = true;
+      btnChangeAthlete.hidden = true;
       resetResultsView('Select an athlete to load their most recent baseline.');
     }
   }
@@ -952,9 +924,7 @@
         tr.innerHTML = `
           <td class="phaseCell">${idx === 0 ? bRow.phaseLabel : ''}</td>
           <td class="metricCell">${group.labels[metricKey]}</td>
-          <td>${bRow.status}</td>
           <td>${numericOrDash(bRow[metricKey], digits)}</td>
-          <td>${cRow ? cRow.status : '—'}</td>
           <td>${cRow ? numericOrDash(cRow[metricKey], digits) : '—'}</td>
           <td>${cRow ? numericDeltaOrDash(bRow[metricKey], cRow[metricKey], digits) : '—'}</td>
         `;
