@@ -43,8 +43,8 @@
   }
 
   function qualityClassFromIndex(idx) {
-    if (idx <= 3) return "status-good";
-    if (idx <= 6) return "status-warn";
+    if (idx <= 8) return "status-good";
+    if (idx <= 10) return "status-warn";
     return "status-bad";
   }
 
@@ -265,7 +265,7 @@
       const indices = sds.map(sd => isFinite(sd) ? computeQualityIndex(sd) : 10);
       renderQuality(indices);
 
-      const pass = indices.every(x => x <= 6);
+      const pass = indices.every(x => x <= 8);
       const now = Date.now();
 
       const bs = $("btnStart");
